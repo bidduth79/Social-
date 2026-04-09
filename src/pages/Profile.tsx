@@ -5,7 +5,7 @@ import { useCallback } from 'react';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { Table, TableBody, TableCell, TableRow } from '../components/ui/table';
-import { ExternalLink, Search, UserCircle, LayoutGrid, List, LogIn, ShieldCheck, ClipboardPaste } from 'lucide-react';
+import { ExternalLink, Search, UserCircle, LayoutGrid, List, ShieldCheck, ClipboardPaste } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useCategories } from '../hooks/useCategories';
@@ -16,7 +16,6 @@ import { toast } from 'sonner';
 import { compressImage } from '../lib/image-utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { signInWithGoogle } from '../firebase';
 
 export default function Profile() {
   const { categories } = useCategories();
@@ -35,7 +34,6 @@ export default function Profile() {
   const [selectedCategory, setSelectedCategory] = useState(categoryQuery || 'All Categories');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handlePaste = useCallback(async (e: ClipboardEvent) => {
@@ -131,21 +129,6 @@ export default function Profile() {
     window.addEventListener('paste', handlePaste);
     return () => window.removeEventListener('paste', handlePaste);
   }, [handlePaste]);
-
-  const handleGoogleLogin = async () => {
-    setIsLoggingIn(true);
-    try {
-      await signInWithGoogle();
-      toast.success('Successfully logged in with Google!');
-    } catch (error: any) {
-      console.error('Login error:', error);
-      if (error.code !== 'auth/popup-closed-by-user') {
-        toast.error('Failed to login. Please try again.');
-      }
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
 
   const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => 
@@ -399,37 +382,6 @@ export default function Profile() {
       {/* Scrollable Content Section */}
       <div className="flex-1 overflow-y-auto py-6 px-4 sm:px-6 lg:px-8 -mx-4 sm:-mx-6 lg:-mx-8 scroll-smooth">
         <div className="max-w-6xl mx-auto w-full pb-8">
-          {auth.currentUser?.isAnonymous && (
-            <motion.div 
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mb-6 p-4 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-100 dark:border-blue-800 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm"
-            >
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-100 dark:bg-blue-900/40 p-2 rounded-full">
-                  <ShieldCheck className="h-5 w-5 text-[#13487a] dark:text-blue-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Secure Your Data</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Login with Google to save your links permanently and access them from any device.</p>
-                </div>
-              </div>
-              <Button 
-                onClick={handleGoogleLogin}
-                disabled={isLoggingIn}
-                className="bg-[#13487a] hover:bg-[#13487a]/90 text-white gap-2 whitespace-nowrap"
-                size="sm"
-              >
-                {isLoggingIn ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                ) : (
-                  <LogIn className="h-4 w-4" />
-                )}
-                Login with Google
-              </Button>
-            </motion.div>
-          )}
-
           {loading ? (
             <div className="text-center py-20 text-slate-500 dark:text-slate-400 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md rounded-xl border border-blue-100 dark:border-slate-800 shadow-sm">
               <motion.div

@@ -1,7 +1,7 @@
-import { User, signOut } from 'firebase/auth';
+import { User } from 'firebase/auth';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Menu, X, ChevronDown, ChevronRight, ExternalLink, UserCircle, Sun, Moon, Search, LogIn, LogOut, Newspaper, Sparkles, Brain } from 'lucide-react';
-import { db, auth, signInWithGoogle } from '../firebase';
+import { LayoutDashboard, Users, Menu, X, ChevronDown, ChevronRight, ExternalLink, UserCircle, Sun, Moon, Search, Newspaper, Sparkles, Brain } from 'lucide-react';
+import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { useState, useEffect } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -25,32 +25,6 @@ export default function Layout({ user }: { user: User }) {
     return false;
   });
 
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-
-  const handleGoogleLogin = async () => {
-    setIsLoggingIn(true);
-    try {
-      await signInWithGoogle();
-      toast.success('Successfully logged in with Google!');
-    } catch (error: any) {
-      console.error('Login error:', error);
-      if (error.code !== 'auth/popup-closed-by-user') {
-        toast.error('Failed to login. Please try again.');
-      }
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      toast.success('Logged out successfully');
-    } catch (error) {
-      console.error('Logout error:', error);
-      toast.error('Failed to logout');
-    }
-  };
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -133,47 +107,6 @@ export default function Layout({ user }: { user: User }) {
             >
               {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
-
-            {user?.isAnonymous ? (
-              <Button
-                onClick={handleGoogleLogin}
-                disabled={isLoggingIn}
-                className="bg-gradient-to-r from-[#13487a] to-blue-600 text-white gap-2 shadow-md hover:shadow-lg transition-all h-9 px-3 sm:px-4"
-                size="sm"
-              >
-                {isLoggingIn ? (
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                ) : (
-                  <LogIn className="h-4 w-4" />
-                )}
-                <span className="hidden sm:inline">Login with Google</span>
-                <span className="sm:hidden">Login</span>
-              </Button>
-            ) : (
-              <div className="flex items-center gap-2">
-                {user?.photoURL ? (
-                  <img 
-                    src={user.photoURL} 
-                    alt={user.displayName || 'User'} 
-                    className="h-8 w-8 rounded-full border-2 border-[#13487a] shadow-sm"
-                    referrerPolicy="no-referrer"
-                  />
-                ) : (
-                  <div className="h-8 w-8 rounded-full bg-[#13487a] flex items-center justify-center text-white text-xs font-bold">
-                    {user?.displayName?.charAt(0) || 'U'}
-                  </div>
-                )}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleLogout}
-                  className="text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-500"
-                  title="Logout"
-                >
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
           </div>
         </div>
       </header>
