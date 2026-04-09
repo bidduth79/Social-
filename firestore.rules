@@ -1,0 +1,126 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.authorUid;
+    }
+    
+    function uidUnchanged() {
+      return !('authorUid' in request.resource.data) || request.resource.data.authorUid == request.auth.uid;
+    }
+    
+    function uidNotModified() {
+      return !('authorUid' in request.resource.data) || request.resource.data.authorUid == resource.data.authorUid;
+    }
+    
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    function isValidUrl(url) {
+      return url is string && url.size() > 0 && url.size() <= 2000;
+    }
+    
+    function isValidAccount(data) {
+      let validPlatforms = ['Facebook', 'YouTube'];
+      
+      return hasRequiredFields(['name', 'platform', 'url', 'category', 'authorUid', 'createdAt', 'updatedAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.platform in validPlatforms &&
+             isValidUrl(data.url) && data.url.size() <= 1000 &&
+             (!('thumbnail' in data) || (data.thumbnail is string && data.thumbnail.size() <= 5000000)) &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 100 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000)) &&
+             (!('order' in data) || data.order is number) &&
+             data.authorUid is string && data.authorUid.size() > 0 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidUserSettings(data) {
+      return hasRequiredFields(['authorUid', 'updatedAt']) &&
+             (!('categories' in data) || (data.categories is list && data.categories.size() <= 100)) &&
+             (!('newspaperCategories' in data) || (data.newspaperCategories is list && data.newspaperCategories.size() <= 100)) &&
+             data.authorUid is string && data.authorUid.size() > 0 &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidNewspaper(data) {
+      return hasRequiredFields(['name', 'url', 'authorUid', 'createdAt', 'updatedAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 500 &&
+             isValidUrl(data.url) && data.url.size() <= 2000 &&
+             (!('thumbnail' in data) || (data.thumbnail is string && data.thumbnail.size() <= 5000000)) &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 200)) &&
+             (!('order' in data) || data.order is number) &&
+             data.authorUid is string && data.authorUid.size() > 0 &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp;
+    }
+
+    function isValidCategory(data) {
+      return hasRequiredFields(['name', 'authorUid', 'createdAt']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.authorUid is string && data.authorUid.size() > 0 &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /accounts/{accountId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && 
+                    uidUnchanged() && 
+                    isValidAccount(request.resource.data);
+      allow update: if isDocOwner() && 
+                    uidNotModified() && 
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    isValidAccount(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /userSettings/{settingId} {
+      allow read: if isAuthenticated() && request.auth.uid == settingId;
+      allow create: if isAuthenticated() && request.auth.uid == settingId && 
+                    uidUnchanged() && 
+                    isValidUserSettings(request.resource.data);
+      allow update: if isAuthenticated() && request.auth.uid == settingId && 
+                    uidNotModified() && 
+                    isValidUserSettings(request.resource.data);
+      allow delete: if isAuthenticated() && request.auth.uid == settingId;
+    }
+
+    match /newspapers/{newspaperId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && 
+                    uidUnchanged() && 
+                    isValidNewspaper(request.resource.data);
+      allow update: if isDocOwner() && 
+                    uidNotModified() && 
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    isValidNewspaper(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+
+    match /newspaper_categories/{categoryId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && 
+                    uidUnchanged() && 
+                    isValidCategory(request.resource.data);
+      allow update: if isDocOwner() && 
+                    uidNotModified() && 
+                    request.resource.data.createdAt == resource.data.createdAt &&
+                    isValidCategory(request.resource.data);
+      allow delete: if isDocOwner();
+    }
+  }
+}

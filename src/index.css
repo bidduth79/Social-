@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@layer base {
+  [data-highlighted] {
+    background-color: #1e4b7a !important;
+    color: white !important;
+    outline: none !important;
+  }
+}

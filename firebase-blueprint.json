@@ -1,0 +1,61 @@
+{
+  "entities": {
+    "Account": {
+      "title": "Account",
+      "description": "A social media account (Facebook or YouTube)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the person or page" },
+        "platform": { "type": "string", "enum": ["Facebook", "YouTube"] },
+        "url": { "type": "string", "format": "uri" },
+        "thumbnail": { "type": "string", "description": "Profile picture URL or base64" },
+        "category": { "type": "string" },
+        "notes": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      },
+      "required": ["name", "platform", "url", "category", "authorUid", "createdAt", "updatedAt"]
+    },
+    "UserSettings": {
+      "title": "User Settings",
+      "description": "User specific settings, like custom categories",
+      "type": "object",
+      "properties": {
+        "categories": { "type": "array", "items": { "type": "string" } },
+        "authorUid": { "type": "string" },
+        "updatedAt": { "type": "timestamp" }
+      },
+      "required": ["categories", "authorUid", "updatedAt"]
+    },
+    "Newspaper": {
+      "title": "Newspaper",
+      "description": "A newspaper link",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the newspaper" },
+        "url": { "type": "string", "format": "uri" },
+        "thumbnail": { "type": "string", "format": "uri", "description": "URL of the newspaper logo/thumbnail" },
+        "category": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "createdAt": { "type": "timestamp" },
+        "updatedAt": { "type": "timestamp" }
+      },
+      "required": ["name", "url", "authorUid", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "accounts": {
+      "schema": { "$ref": "#/entities/Account" },
+      "description": "Stores all social media accounts"
+    },
+    "userSettings": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "Stores user specific settings"
+    },
+    "newspapers": {
+      "schema": { "$ref": "#/entities/Newspaper" },
+      "description": "Stores newspaper links"
+    }
+  }
+}

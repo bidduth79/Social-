@@ -1,0 +1,5 @@
+{
+  "name": "Social Hub",
+  "description": "A professional web hub to store and manage Facebook/YouTube accounts and newspapers, categorized by various groups with real-time updates.",
+  "requestFramePermissions": ["clipboard-read", "clipboard-write"]
+}
