@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, query, where, getDocs, writeBatch, doc, serverTimestamp } from 'firebase/firestore';
 import { useCallback } from 'react';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { Table, TableBody, TableCell, TableRow } from '../components/ui/table';
-import { ExternalLink, Search, UserCircle, LayoutGrid, List, ShieldCheck, ClipboardPaste } from 'lucide-react';
+import { ExternalLink, Search, UserCircle, LayoutGrid, List, ShieldCheck, ClipboardPaste, Users } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { useCategories } from '../hooks/useCategories';
@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 
 export default function Profile() {
+  const navigate = useNavigate();
   const { categories } = useCategories();
   const { markAsVisited, isVisited, getVisitCount } = useVisitedLinks();
   const [accounts, setAccounts] = useState<Account[]>(() => {
@@ -242,12 +243,7 @@ export default function Profile() {
   };
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const q = query(
-      collection(db, 'accounts'),
-      where('authorUid', '==', auth.currentUser.uid)
-    );
+    const q = query(collection(db, 'accounts'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
@@ -316,6 +312,13 @@ export default function Profile() {
               </p>
             </div>
             <div className="flex items-center justify-center sm:justify-end gap-2">
+              <Button
+                onClick={() => navigate('/accounts')}
+                className="bg-gradient-to-r from-[#13487a] to-blue-600 hover:from-blue-700 hover:to-[#13487a] text-white gap-2 shadow-lg shadow-blue-500/20 h-9 px-4 font-bold border-none transition-all duration-300 hover:scale-105 active:scale-95"
+              >
+                <Users className="h-4 w-4" />
+                Edit
+              </Button>
               <AnimatePresence>
                 {selectedIds.length > 0 && (
                   <motion.div

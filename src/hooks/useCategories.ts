@@ -26,42 +26,35 @@ export function useCategories(type: 'accounts' | 'newspapers' = 'accounts') {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!auth.currentUser) {
-      setCategories(defaultCats);
-      setLoading(false);
-      return;
-    }
-
-    const docRef = doc(db, 'userSettings', auth.currentUser.uid);
+    const docRef = doc(db, 'settings', 'global');
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists() && docSnap.data()[fieldName]) {
         setCategories(docSnap.data()[fieldName]);
       } else {
         // Initialize with default categories if not exists
         setCategories(defaultCats);
-        setDoc(docRef, {
-          [fieldName]: defaultCats,
-          authorUid: auth.currentUser!.uid,
-          updatedAt: serverTimestamp()
-        }, { merge: true }).catch((error) => {
-          handleFirestoreError(error, OperationType.WRITE, `userSettings/${auth.currentUser?.uid}`);
-        });
+        if (auth.currentUser) {
+          setDoc(docRef, {
+            [fieldName]: defaultCats,
+            updatedAt: serverTimestamp()
+          }, { merge: true }).catch((error) => {
+            handleFirestoreError(error, OperationType.WRITE, 'settings/global');
+          });
+        }
       }
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `userSettings/${auth.currentUser?.uid}`);
+      handleFirestoreError(error, OperationType.GET, 'settings/global');
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [auth.currentUser?.uid, fieldName]);
+  }, [fieldName]);
 
   const updateCategories = async (newCategories: string[]) => {
-    if (!auth.currentUser) return;
-    const docRef = doc(db, 'userSettings', auth.currentUser.uid);
+    const docRef = doc(db, 'settings', 'global');
     await setDoc(docRef, {
       [fieldName]: newCategories,
-      authorUid: auth.currentUser.uid,
       updatedAt: serverTimestamp()
     }, { merge: true });
   };

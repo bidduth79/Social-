@@ -501,12 +501,7 @@ export default function Accounts() {
   };
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const q = query(
-      collection(db, 'accounts'),
-      where('authorUid', '==', auth.currentUser.uid)
-    );
+    const q = query(collection(db, 'accounts'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({

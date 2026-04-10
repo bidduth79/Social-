@@ -41,8 +41,7 @@ export default function Layout({ user }: { user: User }) {
   }, [isDarkMode]);
 
   useEffect(() => {
-    if (!user) return;
-    const q = query(collection(db, 'accounts'), where('authorUid', '==', user.uid));
+    const q = query(collection(db, 'accounts'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Account[];
       setAccounts(data);
@@ -50,7 +49,7 @@ export default function Layout({ user }: { user: User }) {
       handleFirestoreError(error, OperationType.LIST, 'accounts');
     });
     return () => unsubscribe();
-  }, [user]);
+  }, []);
 
   const accountsByCategory = accounts.reduce((acc, account) => {
     if (!acc[account.category]) acc[account.category] = [];
@@ -63,7 +62,6 @@ export default function Layout({ user }: { user: User }) {
     { name: 'Search Tool', href: '/search', icon: Search },
     { name: 'AI Intelligence', href: '/ai-intelligence', icon: Brain, premium: true },
     { name: 'Newspaper', href: '/newspapers', icon: Newspaper },
-    { name: 'All Links', href: '/accounts', icon: Users },
   ];
 
   return (
@@ -169,7 +167,7 @@ export default function Layout({ user }: { user: User }) {
             >
               <div className="flex items-center gap-3">
                 <UserCircle className={cn("h-5 w-5", (isProfileExpanded || location.pathname === '/profile') ? "text-white" : "text-slate-400 group-hover:text-[#13487a]")} />
-                Category Wise
+                All Facebook Profiles
               </div>
               {isProfileExpanded ? (
                 <ChevronDown className="h-4 w-4" />

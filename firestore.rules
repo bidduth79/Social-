@@ -77,7 +77,7 @@ service cloud.firestore {
     // Rules
     // ===============================================================
     match /accounts/{accountId} {
-      allow read: if isDocOwner();
+      allow read: if true;
       allow create: if isAuthenticated() && 
                     uidUnchanged() && 
                     isValidAccount(request.resource.data);
@@ -86,6 +86,11 @@ service cloud.firestore {
                     request.resource.data.createdAt == resource.data.createdAt &&
                     isValidAccount(request.resource.data);
       allow delete: if isDocOwner();
+    }
+
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
 
     match /userSettings/{settingId} {
@@ -100,7 +105,7 @@ service cloud.firestore {
     }
 
     match /newspapers/{newspaperId} {
-      allow read: if isDocOwner();
+      allow read: if true;
       allow create: if isAuthenticated() && 
                     uidUnchanged() && 
                     isValidNewspaper(request.resource.data);

@@ -1,25 +1,34 @@
 import { GoogleGenAI } from "@google/genai";
 
 // @ts-ignore
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || "" });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY || "" });
 
 export async function summarizeText(text: string) {
+  const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment.");
+  }
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: `Please summarize the following text in Bengali (বাংলা). Keep it concise but informative:\n\n${text}`
     });
     return response.text || "No summary generated.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Error:", error);
-    throw new Error("Failed to generate summary. Please check your API key.");
+    const message = error?.message || "Failed to generate summary.";
+    throw new Error(`${message} Please check your API key and model permissions.`);
   }
 }
 
 export async function analyzePost(text: string) {
+  const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment.");
+  }
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-flash-latest",
       contents: `Please analyze this social media post for intelligence purposes in Bengali (বাংলা). 
       Extract the following information if available:
       - Sentiment (ইতিবাচক/নেতিবাচক/নিরপেক্ষ)
@@ -30,8 +39,9 @@ export async function analyzePost(text: string) {
       Post text:\n\n${text}`
     });
     return response.text || "No analysis generated.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini Error:", error);
-    throw new Error("Failed to analyze post.");
+    const message = error?.message || "Failed to analyze post.";
+    throw new Error(`${message} Please check your API key and model permissions.`);
   }
 }

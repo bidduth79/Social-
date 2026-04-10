@@ -180,7 +180,6 @@ export default function CategoryManager({ isOpen, onClose, type = 'accounts', ex
           const ref = collection(db, collName);
           const q = query(
             ref, 
-            where('authorUid', '==', auth.currentUser.uid),
             where('category', '==', oldName)
           );
           

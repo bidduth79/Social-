@@ -42,17 +42,8 @@ export default function Dashboard() {
   const [rawAccounts, setRawAccounts] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const qAccounts = query(
-      collection(db, 'accounts'),
-      where('authorUid', '==', auth.currentUser.uid)
-    );
-
-    const qNewspapers = query(
-      collection(db, 'newspapers'),
-      where('authorUid', '==', auth.currentUser.uid)
-    );
+    const qAccounts = query(collection(db, 'accounts'));
+    const qNewspapers = query(collection(db, 'newspapers'));
 
     let accountsSnapshot: any = null;
     let newspapersSnapshot: any = null;

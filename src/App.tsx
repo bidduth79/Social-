@@ -9,7 +9,7 @@ import Profile from './pages/Profile';
 import SearchTool from './pages/SearchTool';
 import Newspapers from './pages/Newspapers';
 import AIAssistant from './pages/AIAssistant';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -21,8 +21,13 @@ export default function App() {
         try {
           await signInAnonymously(auth);
           // onAuthStateChanged will trigger again with the anonymous user
-        } catch (error) {
+        } catch (error: any) {
           console.error("Auto-login failed:", error);
+          if (error.code === 'auth/admin-restricted-operation') {
+            toast.error("Anonymous Authentication is disabled. Please enable it in the Firebase Console (Authentication > Sign-in method) to allow saving changes.");
+          } else {
+            toast.error("Auto-login failed. You are viewing the app in read-only mode.");
+          }
           setLoading(false);
         }
       } else {
