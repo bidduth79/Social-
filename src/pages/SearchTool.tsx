@@ -3,7 +3,7 @@ import {
   Search, ExternalLink, Calendar, History, Trash2, Clock, Facebook, Info, 
   ChevronRight, LayoutGrid, MousePointer2, MapPin, Video, Image, Link as LinkIcon,
   User, Users, Globe, Twitter, Instagram, Youtube, Save, Plus, X as CloseIcon,
-  ChevronDown, ChevronUp, Layers, ListChecks, Tag, X
+  ChevronDown, ChevronUp, Layers, ListChecks, Tag, X, Music
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { motion, AnimatePresence } from 'motion/react';
@@ -88,25 +88,26 @@ export default function SearchTool() {
   }, [savedKeywords]);
 
   const constructFBUrl = (k: string, d: string, loc?: string, pType?: string, src?: string) => {
-    const [year, month, day] = d.split('-');
+    const filterObj: any = {};
     
-    // Facebook expects a very specific nested JSON string for the date filter
-    // We'll use a more robust encoding method
-    const dateArgs = {
-      start_year: year,
-      start_month: `${year}-${month}`,
-      end_month: `${year}-${month}`,
-      start_day: `${year}-${month}-${day}`,
-      end_day: `${year}-${month}-${day}`
-    };
+    // 1. Date Filter
+    if (d) {
+      const [year, month, day] = d.split('-');
+      const dateArgs = {
+        start_year: year,
+        start_month: `${year}-${month}`,
+        end_month: `${year}-${month}`,
+        start_day: `${year}-${month}-${day}`,
+        end_day: `${year}-${month}-${day}`
+      };
 
-    const filterObj: any = {
-      "rp_creation_time:0": JSON.stringify({
+      filterObj["rp_creation_time:0"] = JSON.stringify({
         "name": "creation_time",
         "args": JSON.stringify(dateArgs)
-      })
-    };
+      });
+    }
 
+    // 2. Post Type Filter
     if (pType && pType !== 'all') {
       const typeMap: Record<string, string> = {
         'video': 'posts_video',
@@ -120,10 +121,13 @@ export default function SearchTool() {
       });
     }
 
+    // 3. Source/Author Type Filter
     if (src && src !== 'all') {
-      filterObj["rp_author_type:0"] = JSON.stringify({
-        "name": "author_type",
-        "args": src
+      // Facebook expects 'group' (singular) for the groups filter
+      const sourceValue = src === 'groups' ? 'group' : src;
+      filterObj["interactor:0"] = JSON.stringify({
+        "name": "interactor",
+        "args": sourceValue
       });
     }
 
@@ -132,8 +136,13 @@ export default function SearchTool() {
       finalKeyword += ` ${loc.trim()}`;
     }
 
-    // Standard Base64 encoding for the filter object - using UTF-8 safe method
+    if (Object.keys(filterObj).length === 0) {
+      return `https://www.facebook.com/search/posts/?q=${encodeURIComponent(finalKeyword)}`;
+    }
+
+    // Standard Base64 encoding for the filter object
     const jsonStr = JSON.stringify(filterObj);
+    // Use a robust Base64 encoding that handles special characters
     const encodedFilter = btoa(unescape(encodeURIComponent(jsonStr)));
     
     return `https://www.facebook.com/search/posts/?q=${encodeURIComponent(finalKeyword)}&filters=${encodeURIComponent(encodedFilter)}`;
@@ -183,7 +192,7 @@ export default function SearchTool() {
     toast.success(`Opened ${Math.min(keywords.length, 10)} search tabs`);
   };
 
-  const handleOtherPlatform = (platform: 'x' | 'ig' | 'yt') => {
+  const handleOtherPlatform = (platform: 'x' | 'ig' | 'yt' | 'tiktok') => {
     if (!keyword.trim()) {
       toast.error('Please enter a keyword first');
       return;
@@ -196,6 +205,7 @@ export default function SearchTool() {
       case 'x': url = `https://x.com/search?q=${k}&src=typed_query`; break;
       case 'ig': url = `https://www.instagram.com/explore/tags/${k.replace(/%20/g, '')}/`; break;
       case 'yt': url = `https://www.youtube.com/results?search_query=${k}`; break;
+      case 'tiktok': url = `https://www.tiktok.com/search?q=${k}`; break;
     }
     
     window.open(url, '_blank');
@@ -249,6 +259,20 @@ export default function SearchTool() {
   const removeSavedKeyword = (k: string) => {
     setSavedKeywords(prev => prev.filter(item => item !== k));
     toast.success('Keyword removed');
+  };
+
+  const resetFilters = () => {
+    setKeyword('');
+    setDate(new Date().toISOString().split('T')[0]);
+    setLocation('');
+    setPostType('all');
+    setSource('all');
+    toast.success('Filters reset');
+  };
+
+  const clearDate = () => {
+    setDate('');
+    toast.success('Date filter cleared');
   };
 
   const clearHistory = () => {
@@ -376,25 +400,36 @@ export default function SearchTool() {
               {/* Search Card */}
               <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 lg:p-8 shadow-xl shadow-[#13487a]/5">
                 <div className="max-w-3xl mx-auto space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                      <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                        {activeTab === 'custom' ? 'Advanced Discovery' : 'Batch Discovery'}
-                      </h2>
-                      <p className="text-slate-500 dark:text-slate-400 text-sm">
-                        {activeTab === 'custom' ? 'Precision search with deep filters' : 'Search multiple keywords at once'}
-                      </p>
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
+                          {activeTab === 'custom' ? 'Advanced Discovery' : 'Batch Discovery'}
+                        </h2>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm">
+                          {activeTab === 'custom' ? 'Precision search with deep filters' : 'Search multiple keywords at once'}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={resetFilters}
+                          className="text-slate-500 gap-2 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Reset
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={saveTemplate}
+                          className="text-[#13487a] dark:text-[#13487a] gap-2 hover:bg-[#13487a]/10 dark:hover:bg-[#13487a]/20"
+                        >
+                          <Save className="h-4 w-4" />
+                          Save Template
+                        </Button>
+                      </div>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={saveTemplate}
-                      className="text-[#13487a] dark:text-[#13487a] gap-2 hover:bg-[#13487a]/10 dark:hover:bg-[#13487a]/20"
-                    >
-                      <Save className="h-4 w-4" />
-                      Save Template
-                    </Button>
-                  </div>
 
                   <div className="space-y-6">
                     {activeTab === 'custom' ? (
@@ -441,8 +476,11 @@ export default function SearchTool() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1 flex items-center gap-2">
-                          <Calendar className="h-4 w-4" /> Date
+                        <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 ml-1 flex items-center justify-between">
+                          <span className="flex items-center gap-2"><Calendar className="h-4 w-4" /> Date</span>
+                          {date && (
+                            <button onClick={clearDate} className="text-[10px] text-red-500 hover:underline">Clear</button>
+                          )}
                         </label>
                         <input 
                           type="date" 
@@ -548,27 +586,46 @@ export default function SearchTool() {
                       <Button type="button" variant="outline" size="sm" onClick={() => setQuickDate(7)} className="rounded-full px-4">7 Days Ago</Button>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                       <Button 
                         onClick={activeTab === 'custom' ? () => handleSearch() : handleBatchSearch}
-                        className="flex-1 py-7 rounded-2xl bg-[#13487a] hover:bg-[#13487a]/90 text-white text-xl font-bold shadow-lg shadow-[#13487a]/20 transition-all hover:scale-[1.01] active:scale-[0.99] gap-3"
+                        className="py-4 rounded-xl bg-[#13487a] hover:bg-[#13487a]/90 text-white text-xs sm:text-sm font-bold shadow-lg shadow-[#13487a]/20 transition-all hover:scale-[1.01] active:scale-[0.99] gap-2"
                       >
-                        <Facebook className="h-6 w-6" />
-                        {activeTab === 'custom' ? 'Search Facebook' : 'Batch Search FB'}
+                        <Facebook className="h-4 w-4" />
+                        <span className="truncate">{activeTab === 'custom' ? 'Facebook' : 'Batch FB'}</span>
                       </Button>
                       
                       {activeTab === 'custom' && (
-                        <div className="flex gap-2">
-                          <Button onClick={() => handleOtherPlatform('x')} variant="outline" className="p-0 w-14 h-14 rounded-2xl border-slate-200 dark:border-slate-700 hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 group">
-                            <Twitter className="h-6 w-6 text-slate-400 group-hover:text-sky-500 transition-colors" />
+                        <>
+                          <Button 
+                            onClick={() => handleOtherPlatform('yt')} 
+                            className="py-4 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs sm:text-sm font-bold shadow-lg shadow-red-600/20 transition-all hover:scale-[1.01] active:scale-[0.99] gap-2"
+                          >
+                            <Youtube className="h-4 w-4" />
+                            <span className="truncate">YouTube</span>
                           </Button>
-                          <Button onClick={() => handleOtherPlatform('ig')} variant="outline" className="p-0 w-14 h-14 rounded-2xl border-slate-200 dark:border-slate-700 hover:border-pink-500 hover:bg-pink-50 dark:hover:bg-pink-900/20 group">
-                            <Instagram className="h-6 w-6 text-slate-400 group-hover:text-pink-500 transition-colors" />
+                          <Button 
+                            onClick={() => handleOtherPlatform('x')} 
+                            className="py-4 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs sm:text-sm font-bold shadow-lg shadow-sky-500/20 transition-all hover:scale-[1.01] active:scale-[0.99] gap-2"
+                          >
+                            <Twitter className="h-4 w-4" />
+                            <span className="truncate">Twitter</span>
                           </Button>
-                          <Button onClick={() => handleOtherPlatform('yt')} variant="outline" className="p-0 w-14 h-14 rounded-2xl border-slate-200 dark:border-slate-700 hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 group">
-                            <Youtube className="h-6 w-6 text-slate-400 group-hover:text-red-500 transition-colors" />
+                          <Button 
+                            onClick={() => handleOtherPlatform('tiktok')} 
+                            className="py-4 rounded-xl bg-black hover:bg-slate-900 text-white text-xs sm:text-sm font-bold shadow-lg shadow-black/20 transition-all hover:scale-[1.01] active:scale-[0.99] gap-2"
+                          >
+                            <Music className="h-4 w-4" />
+                            <span className="truncate">TikTok</span>
                           </Button>
-                        </div>
+                          <Button 
+                            onClick={() => handleOtherPlatform('ig')} 
+                            className="py-4 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs sm:text-sm font-bold shadow-lg shadow-pink-600/20 transition-all hover:scale-[1.01] active:scale-[0.99] gap-2"
+                          >
+                            <Instagram className="h-4 w-4" />
+                            <span className="truncate">Instagram</span>
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -647,7 +704,7 @@ export default function SearchTool() {
                               className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 gap-2 font-bold"
                             >
                               <Trash2 className="h-4 w-4" />
-                              Clear
+                              Clear All History
                             </Button>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

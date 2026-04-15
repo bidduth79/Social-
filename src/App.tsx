@@ -9,6 +9,7 @@ import Profile from './pages/Profile';
 import SearchTool from './pages/SearchTool';
 import Newspapers from './pages/Newspapers';
 import AIAssistant from './pages/AIAssistant';
+import ErrorBoundary from './components/ErrorBoundary';
 import { Toaster, toast } from 'sonner';
 
 export default function App() {
@@ -52,19 +53,21 @@ export default function App() {
   }
 
   return (
-    <BrowserRouter>
-      <Toaster position="top-right" richColors closeButton />
-      <Routes>
-        <Route path="/" element={<Layout user={user} />}>
-          <Route index element={<Dashboard />} />
-          <Route path="accounts" element={<Accounts />} />
-          <Route path="profile" element={<Profile />} />
-          <Route path="search" element={<SearchTool />} />
-          <Route path="newspapers" element={<Newspapers />} />
-          <Route path="ai-intelligence" element={<AIAssistant />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Toaster position="top-right" richColors closeButton />
+        <Routes>
+          <Route path="/" element={<Layout user={user} />}>
+            <Route index element={<Dashboard />} />
+            <Route path="accounts" element={<Accounts />} />
+            <Route path="profile" element={<Profile />} />
+            <Route path="search" element={<SearchTool />} />
+            <Route path="newspapers" element={<Newspapers />} />
+            <Route path="ai-intelligence" element={<AIAssistant />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

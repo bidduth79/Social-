@@ -53,13 +53,25 @@ export default function Layout({ user }: { user: User | null }) {
   }, []);
 
   const accountsByCategory = useMemo(() => {
-    return categories.reduce((acc, category) => {
+    const accByCategory: Record<string, Account[]> = {};
+    
+    // Group by defined categories
+    categories.forEach(category => {
       const catAccounts = accounts.filter(account => account.category === category);
       if (catAccounts.length > 0) {
-        acc[category] = catAccounts;
+        accByCategory[category] = catAccounts;
       }
-      return acc;
-    }, {} as Record<string, Account[]>);
+    });
+    
+    // Find accounts that don't match any defined category
+    const categorizedIds = new Set(Object.values(accByCategory).flat().map(a => a.id));
+    const uncategorized = accounts.filter(a => !categorizedIds.has(a.id));
+    
+    if (uncategorized.length > 0) {
+      accByCategory['Uncategorized'] = uncategorized;
+    }
+    
+    return accByCategory;
   }, [categories, accounts]);
 
   const navigation = [
@@ -257,8 +269,10 @@ export default function Layout({ user }: { user: User | null }) {
                         </button>
                       </div>
                     ))}
-                  {Object.keys(accountsByCategory).length === 0 && (
+                  {accounts.length === 0 ? (
                     <p className="px-3 py-2 text-sm text-slate-400 italic">No accounts added yet.</p>
+                  ) : Object.keys(accountsByCategory).length === 0 && (
+                    <p className="px-3 py-2 text-sm text-slate-400 italic">No categorized accounts found.</p>
                   )}
                 </motion.div>
               )}

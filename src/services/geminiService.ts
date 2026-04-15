@@ -23,9 +23,7 @@ export async function summarizeText(text: string) {
 
 export async function analyzePost(text: string) {
   const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("Gemini API key is missing. Please set GEMINI_API_KEY in your environment.");
-  }
+  if (!apiKey) throw new Error("Gemini API key is missing.");
   try {
     const response = await ai.models.generateContent({
       model: "gemini-flash-latest",
@@ -40,8 +38,89 @@ export async function analyzePost(text: string) {
     });
     return response.text || "No analysis generated.";
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    const message = error?.message || "Failed to analyze post.";
-    throw new Error(`${message} Please check your API key and model permissions.`);
+    throw new Error(error?.message || "Failed to analyze post.");
+  }
+}
+
+export async function translateToBengali(text: string) {
+  const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Gemini API key is missing.");
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: `Translate the following text into high-quality, professional Bengali (বাংলা):\n\n${text}`
+    });
+    return response.text || "Translation failed.";
+  } catch (error: any) {
+    throw new Error(error?.message || "Failed to translate.");
+  }
+}
+
+export async function factCheck(text: string) {
+  const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Gemini API key is missing.");
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: `Perform a preliminary fact-check on the following claim/text in Bengali (বাংলা). 
+      Identify:
+      - Veracity (সত্যতা যাচাই)
+      - Missing Context (অনুপস্থিত প্রেক্ষাপট)
+      - Potential Bias (সম্ভাব্য পক্ষপাতিত্ব)
+      - Reliable Sources to check (যাচাই করার জন্য নির্ভরযোগ্য উৎস)
+      
+      Text:\n\n${text}`
+    });
+    return response.text || "Fact check failed.";
+  } catch (error: any) {
+    throw new Error(error?.message || "Failed to fact check.");
+  }
+}
+
+export async function factCheckWithImage(text: string, imageData: string, mimeType: string) {
+  const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Gemini API key is missing.");
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: `Perform a preliminary fact-check on the following image and text in Bengali (বাংলা). 
+            Identify:
+            - Veracity (সত্যতা যাচাই)
+            - Missing Context (অনুপস্থিত প্রেক্ষাপট)
+            - Potential Bias (সম্ভাব্য পক্ষপাতিত্ব)
+            - Reliable Sources to check (যাচাই করার জন্য নির্ভরযোগ্য উৎস)
+            
+            Additional Text: ${text || "No additional text provided"}` },
+            {
+              inlineData: {
+                data: imageData,
+                mimeType: mimeType
+              }
+            }
+          ]
+        }
+      ]
+    });
+    return response.text || "Fact check failed.";
+  } catch (error: any) {
+    throw new Error(error?.message || "Failed to fact check with image.");
+  }
+}
+
+export async function generateContent(topic: string, type: 'post' | 'report') {
+  const apiKey = process.env.GEMINI_API_KEY || (import.meta as any).env.VITE_GEMINI_API_KEY;
+  if (!apiKey) throw new Error("Gemini API key is missing.");
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: `Write a professional ${type === 'post' ? 'social media post' : 'news report'} in Bengali (বাংলা) about the following topic:\n\n${topic}`
+    });
+    return response.text || "Generation failed.";
+  } catch (error: any) {
+    throw new Error(error?.message || "Failed to generate content.");
   }
 }
