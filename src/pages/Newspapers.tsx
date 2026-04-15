@@ -1090,15 +1090,6 @@ export default function Newspapers() {
             <div className="flex items-center gap-2">
               <Button 
                 variant="outline" 
-                onClick={handleImportFromForeignAccounts}
-                disabled={isSaving}
-                className="border-slate-200 text-slate-600 hover:bg-blue-50 gap-2"
-              >
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <FolderInput className="h-4 w-4" />}
-                <span className="hidden sm:inline">Import Foreign</span>
-              </Button>
-              <Button 
-                variant="outline" 
                 onClick={() => setIsCategoryManagerOpen(true)}
                 className="border-slate-200 text-slate-600 hover:bg-slate-50 gap-2"
               >
@@ -1295,26 +1286,6 @@ export default function Newspapers() {
         isOpen={isCategoryManagerOpen} 
         onClose={() => setIsCategoryManagerOpen(false)} 
         type="newspapers"
-        extraActions={
-          <>
-            <Button 
-              onClick={handleCleanDuplicates} 
-              variant="outline" 
-              className="border-blue-200 text-[#13487a] hover:bg-blue-50 gap-2"
-            >
-              <Sparkles className="h-4 w-4" />
-              Clean Duplicates
-            </Button>
-            <Button 
-              onClick={seedData} 
-              variant="outline" 
-              className="border-blue-200 text-[#13487a] hover:bg-blue-50 gap-2"
-            >
-              <NewspaperIcon className="h-4 w-4" />
-              Import Defaults
-            </Button>
-          </>
-        }
       />
 
       {/* Add/Edit Modal */}

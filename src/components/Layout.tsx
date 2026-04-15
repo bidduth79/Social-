@@ -1,9 +1,9 @@
 import { User } from 'firebase/auth';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Menu, X, ChevronDown, ChevronRight, ExternalLink, UserCircle, Sun, Moon, Search, Newspaper, Sparkles, Brain } from 'lucide-react';
-import { db, auth } from '../firebase';
+import { db, auth, loginWithGoogle } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { cn } from '../lib/utils';
 import { Button } from './ui/button';
@@ -12,7 +12,7 @@ import { useCategories } from '../hooks/useCategories';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 
-export default function Layout({ user }: { user: User }) {
+export default function Layout({ user }: { user: User | null }) {
   const { categories } = useCategories();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -24,6 +24,7 @@ export default function Layout({ user }: { user: User }) {
     }
     return false;
   });
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -51,11 +52,15 @@ export default function Layout({ user }: { user: User }) {
     return () => unsubscribe();
   }, []);
 
-  const accountsByCategory = accounts.reduce((acc, account) => {
-    if (!acc[account.category]) acc[account.category] = [];
-    acc[account.category].push(account);
-    return acc;
-  }, {} as Record<string, Account[]>);
+  const accountsByCategory = useMemo(() => {
+    return categories.reduce((acc, category) => {
+      const catAccounts = accounts.filter(account => account.category === category);
+      if (catAccounts.length > 0) {
+        acc[category] = catAccounts;
+      }
+      return acc;
+    }, {} as Record<string, Account[]>);
+  }, [categories, accounts]);
 
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
@@ -63,6 +68,21 @@ export default function Layout({ user }: { user: User }) {
     { name: 'AI Intelligence', href: '/ai-intelligence', icon: Brain, premium: true },
     { name: 'Newspaper', href: '/newspapers', icon: Newspaper },
   ];
+
+  const handleGoogleLogin = async () => {
+    try {
+      setIsLoggingIn(true);
+      await loginWithGoogle();
+      toast.success("Logged in successfully");
+    } catch (error) {
+      console.error("Login failed:", error);
+      toast.error("Login failed", {
+        description: "Could not sign in with Google."
+      });
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
 
   return (
     <div 
@@ -97,6 +117,22 @@ export default function Layout({ user }: { user: User }) {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
+            {!user && (
+              <Button
+                onClick={handleGoogleLogin}
+                disabled={isLoggingIn}
+                className="bg-gradient-to-r from-[#13487a] to-blue-600 text-white h-9 px-4 font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:scale-105 active:scale-95"
+              >
+                {isLoggingIn ? (
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                ) : (
+                  <>
+                    <img src="https://www.google.com/favicon.ico" className="h-4 w-4 mr-2" alt="" />
+                    Login
+                  </>
+                )}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -195,7 +231,7 @@ export default function Layout({ user }: { user: User }) {
                       if (indexB !== -1) return 1;
                       return a.localeCompare(b);
                     })
-                    .map(([category, catAccounts]) => (
+                    .map(([category, catAccounts]: [string, Account[]]) => (
                       <div key={category} className="space-y-1">
                         <button
                           onClick={() => {

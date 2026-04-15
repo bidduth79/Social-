@@ -57,14 +57,14 @@ function SortableCategoryItem({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={`flex items-center gap-2 p-2 bg-slate-50 border border-slate-100 rounded-md group hover:border-blue-200 transition-colors ${isDragging ? 'shadow-md relative' : ''}`}>
+    <div ref={setNodeRef} style={style} className={`flex items-center gap-2 p-2 bg-slate-50 border border-slate-100 rounded-md group hover:bg-[#13487a] hover:border-[#13487a] transition-all duration-200 ${isDragging ? 'shadow-md relative' : ''}`}>
       <input 
         type="checkbox" 
         checked={isSelected} 
         onChange={() => onToggleSelect(cat)}
-        className="w-4 h-4 rounded border-slate-300 text-[#13487a] focus:ring-[#13487a] cursor-pointer"
+        className="w-4 h-4 rounded border-slate-300 text-[#13487a] focus:ring-[#13487a] cursor-pointer group-hover:border-white/50"
       />
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 text-slate-400 hover:text-[#13487a]">
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing p-1 text-slate-400 group-hover:text-white/70 hover:text-white">
         <GripVertical className="h-5 w-5" />
       </div>
       
@@ -75,19 +75,19 @@ function SortableCategoryItem({
             onChange={(e) => setEditingValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleEditSave(index)}
             autoFocus
-            className="h-8"
+            className="h-8 bg-white text-slate-900"
           />
-          <Button size="sm" onClick={() => handleEditSave(index)} className="h-8">Save</Button>
-          <Button size="sm" variant="outline" onClick={() => setEditingIndex(null)} className="h-8">Cancel</Button>
+          <Button size="sm" onClick={() => handleEditSave(index)} className="h-8 bg-white text-[#13487a] hover:bg-white/90">Save</Button>
+          <Button size="sm" variant="outline" onClick={() => setEditingIndex(null)} className="h-8 border-white/50 text-white hover:bg-white/10">Cancel</Button>
         </div>
       ) : (
         <>
-          <span className="flex-1 font-medium text-slate-700">{cat}</span>
+          <span className="flex-1 font-medium text-slate-700 group-hover:text-white transition-colors">{cat}</span>
           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-[#13487a] hover:bg-blue-50" onClick={() => handleEditStart(index, cat)}>
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-white hover:bg-white/20 group-hover:text-white/80" onClick={() => handleEditStart(index, cat)}>
               <Edit2 className="h-4 w-4" />
             </Button>
-            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50" onClick={() => handleDelete(index)}>
+            <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-white hover:bg-red-500 group-hover:text-white/80" onClick={() => handleDelete(index)}>
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -180,7 +180,8 @@ export default function CategoryManager({ isOpen, onClose, type = 'accounts', ex
           const ref = collection(db, collName);
           const q = query(
             ref, 
-            where('category', '==', oldName)
+            where('category', '==', oldName),
+            where('authorUid', '==', auth.currentUser.uid)
           );
           
           const querySnapshot = await getDocs(q);
@@ -263,18 +264,7 @@ export default function CategoryManager({ isOpen, onClose, type = 'accounts', ex
           <DialogTitle className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-[#13487a] to-blue-600">Manage Categories</DialogTitle>
         </DialogHeader>
         
-        <div className="space-y-4 mt-4">
-          {extraActions && (
-            <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-                Management Tools
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                {extraActions}
-              </div>
-            </div>
-          )}
-
+        <div className="space-y-4 mt-4 flex-1 flex flex-col overflow-hidden">
           <div className="flex gap-2">
           <Input 
             placeholder="New category name..." 

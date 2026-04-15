@@ -132,32 +132,6 @@ export default function AIAssistant() {
             </motion.div>
           )}
         </AnimatePresence>
-
-        {!result && !loading && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 text-center">
-              <div className="bg-white dark:bg-slate-800 w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
-                <Languages className="h-5 w-5 text-indigo-500" />
-              </div>
-              <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-1">Bengali Support</h4>
-              <p className="text-xs text-slate-500">All summaries and analysis are provided in Bengali language.</p>
-            </div>
-            <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 text-center">
-              <div className="bg-white dark:bg-slate-800 w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
-                <ShieldAlert className="h-5 w-5 text-purple-500" />
-              </div>
-              <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-1">OSINT Ready</h4>
-              <p className="text-xs text-slate-500">Extract locations, names, and organizations from social posts.</p>
-            </div>
-            <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800 text-center">
-              <div className="bg-white dark:bg-slate-800 w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3 shadow-sm">
-                <Sparkles className="h-5 w-5 text-yellow-500" />
-              </div>
-              <h4 className="font-bold text-slate-900 dark:text-white text-sm mb-1">Fast Processing</h4>
-              <p className="text-xs text-slate-500">Powered by Gemini 1.5 Flash for near-instant results.</p>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

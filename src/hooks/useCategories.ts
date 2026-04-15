@@ -4,14 +4,35 @@ import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
 export const DEFAULT_ACCOUNT_CATEGORIES = [
-  'BGB', 'BSF', 'Influencer', 'EX BGB', 'EX BDR', 'BDR Group/Page', 
-  'Talk show', 'Terrorists', 'Hill News', 'Defense Page', 
-  'BNP', 'Awami League', 'Jamat e Islami', 'NCP', 'Other\'s Party',
-  'Newspaper Facebook Page', 'Online Newspaper Facebook Page', 
-  'TV Channel Facebook Page', 'Indian Bangla Newspaper', 
-  'Foreign Newspaper Facebook Page', 'Foreign English Newspaper',
-  'Interim Advisors', 'Coordinator', 'High Commission in Dhaka',
-  'Other\'s'
+  'BGB',
+  'BSF',
+  'Influencer',
+  'EX BGB',
+  'EX BDR',
+  'BDR Group/Page',
+  'Talk show',
+  'Terrorists',
+  'Hill News',
+  'Defense Page',
+  'BNP',
+  'Awami League',
+  'Jamat e Islami',
+  'NCP',
+  'Other\'s Party',
+  'Newspaper Facebook Page',
+  'Online Newspaper Facebook Page',
+  'TV Channel Facebook Page',
+  'Indian Bangla Newspaper',
+  'Foreign Newspaper Facebook Page',
+  'Foreign English Newspaper',
+  'High Commission in Dhaka',
+  'Other\'s',
+  'BDR',
+  'BGP',
+  'Chatra Dal',
+  'Chatra League',
+  'Chatra shibir',
+  'Influencer (Defense)'
 ];
 
 export const DEFAULT_NEWSPAPER_CATEGORIES = [
@@ -26,35 +47,41 @@ export function useCategories(type: 'accounts' | 'newspapers' = 'accounts') {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const docRef = doc(db, 'settings', 'global');
+    if (!auth.currentUser) {
+      setLoading(false);
+      return;
+    }
+
+    const docRef = doc(db, 'userSettings', auth.currentUser.uid);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists() && docSnap.data()[fieldName]) {
         setCategories(docSnap.data()[fieldName]);
       } else {
         // Initialize with default categories if not exists
         setCategories(defaultCats);
-        if (auth.currentUser) {
-          setDoc(docRef, {
-            [fieldName]: defaultCats,
-            updatedAt: serverTimestamp()
-          }, { merge: true }).catch((error) => {
-            handleFirestoreError(error, OperationType.WRITE, 'settings/global');
-          });
-        }
+        setDoc(docRef, {
+          [fieldName]: defaultCats,
+          authorUid: auth.currentUser?.uid,
+          updatedAt: serverTimestamp()
+        }, { merge: true }).catch((error) => {
+          handleFirestoreError(error, OperationType.WRITE, `userSettings/${auth.currentUser?.uid}`);
+        });
       }
       setLoading(false);
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'settings/global');
+      handleFirestoreError(error, OperationType.GET, `userSettings/${auth.currentUser?.uid}`);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [fieldName]);
+  }, [fieldName, auth.currentUser]);
 
   const updateCategories = async (newCategories: string[]) => {
-    const docRef = doc(db, 'settings', 'global');
+    if (!auth.currentUser) return;
+    const docRef = doc(db, 'userSettings', auth.currentUser.uid);
     await setDoc(docRef, {
       [fieldName]: newCategories,
+      authorUid: auth.currentUser.uid,
       updatedAt: serverTimestamp()
     }, { merge: true });
   };

@@ -7,14 +7,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '../components/ui/button';
 import Papa from 'papaparse';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
 
-declare module 'jspdf' {
-  interface jsPDF {
-    autoTable: (options: any) => jsPDF;
-  }
-}
+import { useCategories, DEFAULT_ACCOUNT_CATEGORIES, DEFAULT_NEWSPAPER_CATEGORIES } from '../hooks/useCategories';
 import { 
   PieChart, 
   Pie, 
@@ -40,6 +36,7 @@ export default function Dashboard() {
   const [recentAccounts, setRecentAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [rawAccounts, setRawAccounts] = useState<any[]>([]);
+  const [rawNewspapers, setRawNewspapers] = useState<any[]>([]);
 
   useEffect(() => {
     const qAccounts = query(collection(db, 'accounts'));
@@ -68,6 +65,12 @@ export default function Dashboard() {
 
       setRawAccounts(allAccs);
       
+      const allNews: any[] = [];
+      newspapersSnapshot.docs.forEach((doc: any) => {
+        allNews.push({ id: doc.id, ...doc.data() });
+      });
+      setRawNewspapers(allNews);
+      
       // Get 5 most recent
       const sorted = [...allAccs].sort((a, b) => {
         const timeA = a.createdAt?.seconds || 0;
@@ -77,7 +80,7 @@ export default function Dashboard() {
       setRecentAccounts(sorted);
 
       setStats({
-        total: accountsSnapshot.docs.length,
+        total: fbCount + ytCount,
         facebook: fbCount,
         youtube: ytCount,
         newspapers: newspapersSnapshot.docs.length,
@@ -119,26 +122,59 @@ export default function Dashboard() {
   ];
 
   const statCards = [
-    { name: 'Total Accounts', value: stats.total, icon: Users, color: 'text-[#13487a] dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', border: 'border-blue-100 dark:border-blue-900/50' },
     { name: 'Newspapers', value: stats.newspapers, icon: PieChartIcon, color: 'text-[#13487a] dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', border: 'border-blue-100 dark:border-blue-900/50' },
     { name: 'Facebook Pages', value: stats.facebook, icon: Facebook, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', border: 'border-blue-100 dark:border-blue-900/50' },
     { name: 'YouTube Channels', value: stats.youtube, icon: Youtube, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', border: 'border-red-100 dark:border-red-900/50' },
   ];
 
   const exportToCSV = () => {
-    if (rawAccounts.length === 0) {
+    if (rawAccounts.length === 0 && rawNewspapers.length === 0) {
       toast.error('No data to export');
       return;
     }
-    const data = rawAccounts.map(acc => ({
+
+    // Sort accounts by category
+    const sortedAccounts = [...rawAccounts].sort((a, b) => {
+      const indexA = DEFAULT_ACCOUNT_CATEGORIES.indexOf(a.category || '');
+      const indexB = DEFAULT_ACCOUNT_CATEGORIES.indexOf(b.category || '');
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return (a.category || '').localeCompare(b.category || '');
+    });
+
+    // Sort newspapers by category
+    const sortedNewspapers = [...rawNewspapers].sort((a, b) => {
+      const indexA = DEFAULT_NEWSPAPER_CATEGORIES.indexOf(a.category || '');
+      const indexB = DEFAULT_NEWSPAPER_CATEGORIES.indexOf(b.category || '');
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      return (a.category || '').localeCompare(b.category || '');
+    });
+
+    const accountData = sortedAccounts.map(acc => ({
+      Type: 'Facebook/YouTube',
       Name: acc.name,
       URL: acc.url,
-      Category: acc.category,
-      Platform: acc.platform,
+      Category: acc.category || 'Uncategorized',
+      Platform: acc.platform || '',
       Notes: acc.notes || ''
     }));
-    const csv = Papa.unparse(data);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+    const newspaperData = sortedNewspapers.map(news => ({
+      Type: 'Newspaper',
+      Name: news.name,
+      URL: news.url,
+      Category: news.category || 'Uncategorized',
+      Platform: 'Newspaper',
+      Notes: ''
+    }));
+
+    const combinedData = [...accountData, ...newspaperData];
+    const csv = Papa.unparse(combinedData);
+    // Add UTF-8 BOM for Excel compatibility with Bengali characters
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
@@ -150,28 +186,137 @@ export default function Dashboard() {
     toast.success('CSV Exported successfully');
   };
 
-  const exportToPDF = () => {
-    if (rawAccounts.length === 0) {
+  const exportToPDF = async () => {
+    if (rawAccounts.length === 0 && rawNewspapers.length === 0) {
       toast.error('No data to export');
       return;
     }
-    const doc = new jsPDF();
-    doc.text('Social Hub - Accounts Export', 14, 15);
-    const tableData = rawAccounts.map(acc => [
-      acc.name,
-      acc.platform,
-      acc.category,
-      acc.url
-    ]);
-    doc.autoTable({
-      head: [['Name', 'Platform', 'Category', 'URL']],
-      body: tableData,
-      startY: 20,
-      styles: { fontSize: 8 },
-      columnStyles: { 3: { cellWidth: 80 } }
-    });
-    doc.save(`social_hub_export_${new Date().toISOString().split('T')[0]}.pdf`);
-    toast.success('PDF Exported successfully');
+
+    const toastId = toast.loading('Preparing PDF with Bengali font support...');
+
+    try {
+      // Fetch Bengali font (Noto Sans Bengali)
+      // Using a more reliable CDN for the full TTF file
+      const fontUrl = 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansBengali/NotoSansBengali-Regular.ttf';
+      const response = await fetch(fontUrl);
+      if (!response.ok) throw new Error('Font download failed');
+      const fontBlob = await response.blob();
+      
+      const reader = new FileReader();
+      const fontBase64 = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          resolve(base64);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(fontBlob);
+      });
+
+      const doc = new jsPDF();
+      
+      // Add the font to jsPDF
+      doc.addFileToVFS('NotoSansBengali.ttf', fontBase64);
+      doc.addFont('NotoSansBengali.ttf', 'NotoSansBengali', 'normal');
+      doc.setFont('NotoSansBengali');
+
+      // Sort accounts by category
+      const sortedAccounts = [...rawAccounts].sort((a, b) => {
+        const indexA = DEFAULT_ACCOUNT_CATEGORIES.indexOf(a.category || '');
+        const indexB = DEFAULT_ACCOUNT_CATEGORIES.indexOf(b.category || '');
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return (a.category || '').localeCompare(b.category || '');
+      });
+
+      // Sort newspapers by category
+      const sortedNewspapers = [...rawNewspapers].sort((a, b) => {
+        const indexA = DEFAULT_NEWSPAPER_CATEGORIES.indexOf(a.category || '');
+        const indexB = DEFAULT_NEWSPAPER_CATEGORIES.indexOf(b.category || '');
+        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+        if (indexA !== -1) return -1;
+        if (indexB !== -1) return 1;
+        return (a.category || '').localeCompare(b.category || '');
+      });
+
+      // Add Accounts Section
+      doc.setFontSize(16);
+      doc.text('Social Hub - Facebook/YouTube Accounts', 14, 15);
+      const accountTableData = sortedAccounts.map(acc => [
+        acc.name,
+        acc.platform || '',
+        acc.category || 'Uncategorized',
+        acc.url
+      ]);
+      
+      autoTable(doc, {
+        head: [['Name', 'Platform', 'Category', 'URL']],
+        body: accountTableData,
+        startY: 20,
+        styles: { 
+          font: 'NotoSansBengali',
+          fontSize: 9,
+          cellPadding: 3
+        },
+        headStyles: { 
+          font: 'NotoSansBengali',
+          fillColor: [19, 72, 122],
+          textColor: [255, 255, 255]
+        },
+        columnStyles: { 3: { cellWidth: 80 } }
+      });
+
+      // Add Newspapers Section
+      doc.addPage();
+      doc.setFontSize(16);
+      doc.text('Social Hub - Newspapers', 14, 15);
+      const newspaperTableData = sortedNewspapers.map(news => [
+        news.name,
+        news.category || 'Uncategorized',
+        news.url
+      ]);
+
+      autoTable(doc, {
+        head: [['Name', 'Category', 'URL']],
+        body: newspaperTableData,
+        startY: 20,
+        styles: { 
+          font: 'NotoSansBengali',
+          fontSize: 9,
+          cellPadding: 3
+        },
+        headStyles: { 
+          font: 'NotoSansBengali',
+          fillColor: [19, 72, 122],
+          textColor: [255, 255, 255]
+        },
+        columnStyles: { 2: { cellWidth: 100 } }
+      });
+
+      doc.save(`social_hub_export_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success('PDF Exported successfully', { id: toastId });
+    } catch (error) {
+      console.error('PDF Export Error:', error);
+      toast.error('Failed to export PDF with Bengali support. Using standard font.', { id: toastId });
+      
+      // Fallback to standard PDF if font loading fails
+      const doc = new jsPDF();
+      doc.setFontSize(16);
+      doc.text('Social Hub - Export (Standard Font)', 14, 15);
+      
+      const sortedAccounts = [...rawAccounts].sort((a, b) => (a.category || '').localeCompare(b.category || ''));
+      const accountTableData = sortedAccounts.map(acc => [acc.name, acc.platform || '', acc.category || 'Uncategorized', acc.url]);
+      
+      autoTable(doc, {
+        head: [['Name', 'Platform', 'Category', 'URL']],
+        body: accountTableData,
+        startY: 20,
+        styles: { fontSize: 8 },
+        columnStyles: { 3: { cellWidth: 80 } }
+      });
+
+      doc.save(`social_hub_export_fallback_${new Date().toISOString().split('T')[0]}.pdf`);
+    }
   };
 
   return (
@@ -241,7 +386,7 @@ export default function Dashboard() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{stat.name}</p>
-                    <h3 className="text-3xl font-bold text-slate-900 dark:text-white">{stat.value}</h3>
+                    <h3 className="text-3xl font-bold text-slate-900 dark:text-white font-mono tracking-tighter">{stat.value}</h3>
                   </div>
                 </div>
               </motion.div>
@@ -373,30 +518,6 @@ export default function Dashboard() {
             </motion.div>
           </div>
         )}
-
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8 }}
-          className="rounded-xl border border-blue-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-6 shadow-sm"
-        >
-          <div className="flex items-center gap-2 mb-4">
-            <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg">
-              <Activity className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Quick Guide</h2>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 text-sm text-slate-600 dark:text-slate-400">
-            <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-              <p className="font-semibold mb-1 text-slate-900 dark:text-white">Managing Links</p>
-              <p>Navigate to the All Links tab to add, edit, or delete entries. Use the drag-and-drop feature to reorder them within categories.</p>
-            </div>
-            <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-              <p className="font-semibold mb-1 text-slate-900 dark:text-white">Organizing Data</p>
-              <p>Create custom categories to group your links. You can move links between categories using the move icon in the list.</p>
-            </div>
-          </div>
-        </motion.div>
       </div>
     </motion.div>
   );

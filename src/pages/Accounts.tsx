@@ -13,7 +13,7 @@ import CategoryManager from '../components/CategoryManager';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { useCategories } from '../hooks/useCategories';
+import { useCategories, DEFAULT_ACCOUNT_CATEGORIES } from '../hooks/useCategories';
 import { useVisitedLinks } from '../hooks/useVisitedLinks';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -256,7 +256,10 @@ const SortableAccountRow = memo(({
 SortableAccountRow.displayName = 'SortableAccountRow';
 
 export default function Accounts() {
-  const { categories } = useCategories();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedType = (searchParams.get('type') as 'accounts' | 'newspapers') || 'accounts';
+  const { categories, updateCategories } = useCategories(selectedType);
+
   const { markAsVisited, isVisited, getVisitCount } = useVisitedLinks();
   const [accounts, setAccounts] = useState<Account[]>(() => {
     try {
@@ -282,7 +285,6 @@ export default function Accounts() {
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const deferredSearchTerm = useDeferredValue(searchTerm);
-  const [searchParams, setSearchParams] = useSearchParams();
   const categoryQuery = searchParams.get('category');
   const [selectedCategory, setSelectedCategory] = useState(categoryQuery || 'All Categories');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -458,29 +460,17 @@ export default function Accounts() {
   }, [inView, filteredAccounts.length, visibleCount, isScrolling]);
 
   const allCategories = useMemo(() => {
-    // Start with official categories
-    const uniqueCategories = new Set(categories);
-    
-    // Add any categories from accounts that are NOT in the official list
-    accounts.forEach(acc => {
-      if (acc.category) uniqueCategories.add(acc.category);
-    });
-
-    return Array.from(uniqueCategories).sort((a, b) => {
-      const indexA = categories.indexOf(a);
-      const indexB = categories.indexOf(b);
+    // Only show categories that are in the official list from Manage Categories
+    return categories.sort((a, b) => {
+      const indexA = DEFAULT_ACCOUNT_CATEGORIES.indexOf(a);
+      const indexB = DEFAULT_ACCOUNT_CATEGORIES.indexOf(b);
       
-      // If both are in official list, use their order in the list
       if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-      
-      // If only one is in official list, it comes first
       if (indexA !== -1) return -1;
       if (indexB !== -1) return 1;
-      
-      // If neither is in official list, sort alphabetically
       return a.localeCompare(b);
     });
-  }, [categories, accounts]);
+  }, [categories]);
 
   useEffect(() => {
     if (categoryQuery && allCategories.includes(categoryQuery)) {

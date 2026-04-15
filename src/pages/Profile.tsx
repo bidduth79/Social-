@@ -5,12 +5,13 @@ import { useCallback } from 'react';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { Table, TableBody, TableCell, TableRow } from '../components/ui/table';
-import { ExternalLink, Search, UserCircle, LayoutGrid, List, ShieldCheck, ClipboardPaste, Users } from 'lucide-react';
+import { ExternalLink, Search, UserCircle, LayoutGrid, List, ShieldCheck, ClipboardPaste, Users, Settings2 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { useCategories } from '../hooks/useCategories';
+import { useCategories, DEFAULT_ACCOUNT_CATEGORIES } from '../hooks/useCategories';
 import { useVisitedLinks } from '../hooks/useVisitedLinks';
 import { Account } from './Accounts';
+import CategoryManager from '../components/CategoryManager';
 import { Button } from '../components/ui/button';
 import { toast } from 'sonner';
 import { compressImage } from '../lib/image-utils';
@@ -36,6 +37,7 @@ export default function Profile() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
 
   const handlePaste = useCallback(async (e: ClipboardEvent) => {
     if (selectedIds.length === 0) return;
@@ -209,20 +211,16 @@ export default function Profile() {
   }, [accounts, categories, loading]);
 
   const allCategories = useMemo(() => {
-    const uniqueCategories = new Set(categories);
-    accounts.forEach(acc => {
-      if (acc.category) uniqueCategories.add(acc.category);
-    });
-
-    return Array.from(uniqueCategories).sort((a, b) => {
-      const indexA = categories.indexOf(a);
-      const indexB = categories.indexOf(b);
+    // Only show categories that are in the official list from Manage Categories
+    return categories.sort((a, b) => {
+      const indexA = DEFAULT_ACCOUNT_CATEGORIES.indexOf(a);
+      const indexB = DEFAULT_ACCOUNT_CATEGORIES.indexOf(b);
       if (indexA !== -1 && indexB !== -1) return indexA - indexB;
       if (indexA !== -1) return -1;
       if (indexB !== -1) return 1;
       return a.localeCompare(b);
     });
-  }, [categories, accounts]);
+  }, [categories]);
 
   useEffect(() => {
     if (categoryQuery && allCategories.includes(categoryQuery)) {
@@ -589,6 +587,10 @@ export default function Profile() {
           )}
         </div>
       </div>
+      <CategoryManager 
+        isOpen={isCategoryManagerOpen} 
+        onClose={() => setIsCategoryManagerOpen(false)} 
+      />
     </div>
   );
 }

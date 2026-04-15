@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { onAuthStateChanged, User, signInAnonymously } from 'firebase/auth';
-import { auth } from './firebase';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth, loginAnonymously, loginWithGoogle } from './firebase';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import Accounts from './pages/Accounts';
@@ -19,14 +19,13 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         try {
-          await signInAnonymously(auth);
-          // onAuthStateChanged will trigger again with the anonymous user
+          await loginAnonymously();
         } catch (error: any) {
-          console.error("Auto-login failed:", error);
-          if (error.code === 'auth/admin-restricted-operation') {
-            toast.error("Anonymous Authentication is disabled. Please enable it in the Firebase Console (Authentication > Sign-in method) to allow saving changes.");
-          } else {
-            toast.error("Auto-login failed. You are viewing the app in read-only mode.");
+          if (error.code !== 'auth/admin-restricted-operation') {
+            console.error("Auto-login failed:", error);
+            toast.error("Authentication failed", {
+              description: "Some features may be limited."
+            });
           }
           setLoading(false);
         }
@@ -56,7 +55,7 @@ export default function App() {
     <BrowserRouter>
       <Toaster position="top-right" richColors closeButton />
       <Routes>
-        <Route path="/" element={<Layout user={user!} />}>
+        <Route path="/" element={<Layout user={user} />}>
           <Route index element={<Dashboard />} />
           <Route path="accounts" element={<Accounts />} />
           <Route path="profile" element={<Profile />} />
