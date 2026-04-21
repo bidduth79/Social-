@@ -101,7 +101,8 @@ export default function SearchTool() {
   const [newKeywordInput, setNewKeywordInput] = useState('');
 
   const [showHistory, setShowHistory] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(true); // Default to true until first check is done
+  const [hasInitialLoaded, setHasInitialLoaded] = useState(false);
   
   const [aiSearchInput, setAiSearchInput] = useState('');
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
@@ -135,7 +136,11 @@ export default function SearchTool() {
           console.error("Error fetching keywords from Firestore:", error);
         } finally {
           setIsSyncing(false);
+          setHasInitialLoaded(true);
         }
+      } else {
+        setIsSyncing(false);
+        setHasInitialLoaded(true);
       }
     });
 
@@ -178,10 +183,10 @@ export default function SearchTool() {
 
   useEffect(() => {
     localStorage.setItem(SEARCH_KEYWORDS_KEY, JSON.stringify(savedKeywords));
-    if (!isSyncing) {
+    if (!isSyncing && hasInitialLoaded) {
       saveToFirestore(savedKeywords);
     }
-  }, [savedKeywords, isSyncing, saveToFirestore]);
+  }, [savedKeywords, isSyncing, hasInitialLoaded, saveToFirestore]);
 
   const constructFBUrl = (k: string, d: string, loc?: string, pType?: string, src?: string) => {
     const filterObj: any = {};
