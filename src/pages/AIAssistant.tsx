@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Send, Loader2, Brain, ShieldAlert, Languages, FileText, SearchCheck, PenTool, History as HistoryIcon, Trash2, Camera, X as CloseIcon } from 'lucide-react';
+import { Sparkles, Send, Loader2, Brain, ShieldAlert, Languages, FileText, SearchCheck, PenTool, History as HistoryIcon, Trash2, Camera, X as CloseIcon, Facebook, Twitter } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { motion, AnimatePresence } from 'motion/react';
 import { summarizeText, analyzePost, translateToBengali, factCheck, generateContent, factCheckWithImage } from '../services/geminiService';
@@ -8,12 +8,16 @@ import { cn } from '../lib/utils';
 import ReactMarkdown from 'react-markdown';
 
 type AIMode = 'summarize' | 'analyze' | 'translate' | 'factcheck' | 'draft';
+type AITone = 'professional' | 'journalist' | 'analyst' | 'creative';
+type DraftType = 'post' | 'thread' | 'alert' | 'report';
 
 export default function AIAssistant() {
   const [input, setInput] = useState('');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
   const [mode, setMode] = useState<AIMode>('summarize');
+  const [tone, setTone] = useState<AITone>('professional');
+  const [draftType, setDraftType] = useState<DraftType>('post');
   const [history, setHistory] = useState<{mode: AIMode, input: string, result: string, time: string}[]>(() => {
     const saved = localStorage.getItem('ai_intelligence_history');
     return saved ? JSON.parse(saved) : [];
@@ -60,11 +64,11 @@ export default function AIAssistant() {
         response = await factCheckWithImage(input, base64Data, selectedImage.type);
       } else {
         switch(mode) {
-          case 'summarize': response = await summarizeText(input); break;
-          case 'analyze': response = await analyzePost(input); break;
+          case 'summarize': response = await summarizeText(input, tone); break;
+          case 'analyze': response = await analyzePost(input, tone); break;
           case 'translate': response = await translateToBengali(input); break;
           case 'factcheck': response = await factCheck(input); break;
-          case 'draft': response = await generateContent(input, 'post'); break;
+          case 'draft': response = await generateContent(input, draftType, tone); break;
         }
       }
       setResult(response);
@@ -97,7 +101,21 @@ export default function AIAssistant() {
     { id: 'analyze', label: 'Analyze', icon: ShieldAlert, color: 'text-red-600', bg: 'bg-red-50', hover: 'hover:bg-red-100' },
     { id: 'translate', label: 'Translate', icon: Languages, color: 'text-indigo-600', bg: 'bg-indigo-50', hover: 'hover:bg-indigo-100' },
     { id: 'factcheck', label: 'Fact Check', icon: SearchCheck, color: 'text-emerald-600', bg: 'bg-emerald-50', hover: 'hover:bg-emerald-100' },
-    { id: 'draft', label: 'Draft Post', icon: PenTool, color: 'text-purple-600', bg: 'bg-purple-50', hover: 'hover:bg-purple-100' },
+    { id: 'draft', label: 'Content Lab', icon: PenTool, color: 'text-purple-600', bg: 'bg-purple-50', hover: 'hover:bg-purple-100' },
+  ];
+
+  const tones: {id: AITone, label: string, desc: string}[] = [
+    { id: 'professional', label: 'Professional', desc: 'Standard formal tone' },
+    { id: 'journalist', label: 'Journalist', desc: 'Authoritative reporting' },
+    { id: 'analyst', label: 'Analyst', desc: 'Neutral & data-driven' },
+    { id: 'creative', label: 'Storyteller', desc: 'Engaging & narrative' },
+  ];
+
+  const draftTypes: {id: DraftType, label: string, icon: any}[] = [
+    { id: 'post', label: 'FB Post', icon: Facebook },
+    { id: 'thread', label: 'X Thread', icon: Twitter },
+    { id: 'alert', label: 'Alert', icon: Sparkles },
+    { id: 'report', label: 'Report', icon: FileText },
   ];
 
   return (
@@ -139,7 +157,7 @@ export default function AIAssistant() {
         <div className="grid lg:grid-cols-1 gap-6">
           <div className="space-y-6">
             <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-6 shadow-lg">
-              <div className="flex flex-wrap gap-2 mb-6">
+              <div className="flex flex-wrap gap-2 mb-4">
                 {modes.map((m) => (
                   <button
                     key={m.id}
@@ -155,6 +173,52 @@ export default function AIAssistant() {
                     {m.label}
                   </button>
                 ))}
+              </div>
+
+              {/* Advanced Options Bar */}
+              <div className="flex flex-col sm:flex-row gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700">
+                <div className="flex-1 space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Response Tone (আউটপুট টোন)</label>
+                  <div className="flex flex-wrap gap-2">
+                    {tones.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setTone(t.id)}
+                        className={cn(
+                          "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border",
+                          tone === t.id
+                            ? "bg-indigo-600 text-white border-transparent shadow-sm"
+                            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100"
+                        )}
+                      >
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {mode === 'draft' && (
+                  <div className="flex-1 space-y-2 sm:border-l sm:pl-4 border-slate-200 dark:border-slate-700">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Content Type (কন্টেন্ট টাইপ)</label>
+                    <div className="flex flex-wrap gap-2">
+                      {draftTypes.map((dt) => (
+                        <button
+                          key={dt.id}
+                          onClick={() => setDraftType(dt.id)}
+                          className={cn(
+                            "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border flex items-center gap-1.5",
+                            draftType === dt.id
+                              ? "bg-purple-600 text-white border-transparent shadow-sm"
+                              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100"
+                          )}
+                        >
+                          <dt.icon className="h-3 w-3" />
+                          {dt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="space-y-4">

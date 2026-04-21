@@ -19,10 +19,11 @@
     },
     "UserSettings": {
       "title": "User Settings",
-      "description": "User specific settings, like custom categories",
+      "description": "User specific settings, like custom categories and quick keywords",
       "type": "object",
       "properties": {
         "categories": { "type": "array", "items": { "type": "string" } },
+        "quickKeywords": { "type": "array", "items": { "type": "string" } },
         "authorUid": { "type": "string" },
         "updatedAt": { "type": "timestamp" }
       },

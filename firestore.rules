@@ -50,6 +50,7 @@ service cloud.firestore {
       return hasRequiredFields(['authorUid', 'updatedAt']) &&
              (!('categories' in data) || (data.categories is list && data.categories.size() <= 100)) &&
              (!('newspaperCategories' in data) || (data.newspaperCategories is list && data.newspaperCategories.size() <= 100)) &&
+             (!('quickKeywords' in data) || (data.quickKeywords is list && data.quickKeywords.size() <= 100)) &&
              data.authorUid is string && data.authorUid.size() > 0 &&
              data.updatedAt is timestamp;
     }

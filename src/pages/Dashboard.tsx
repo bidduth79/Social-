@@ -2,12 +2,10 @@ import { useEffect, useState, useMemo } from 'react';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
-import { Users, Facebook, Youtube, Activity, PieChart as PieChartIcon, Download, FileJson, FileText, Sparkles, Clock } from 'lucide-react';
+import { Users, Facebook, Youtube, Activity, PieChart as PieChartIcon, Download, FileJson, Sparkles, Clock, Newspaper, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Button } from '../components/ui/button';
 import Papa from 'papaparse';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
 
 import { useCategories, DEFAULT_ACCOUNT_CATEGORIES, DEFAULT_NEWSPAPER_CATEGORIES } from '../hooks/useCategories';
@@ -122,7 +120,7 @@ export default function Dashboard() {
   ];
 
   const statCards = [
-    { name: 'Newspapers', value: stats.newspapers, icon: PieChartIcon, color: 'text-[#13487a] dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', border: 'border-blue-100 dark:border-blue-900/50' },
+    { name: 'Newspapers', value: stats.newspapers, icon: Newspaper, color: 'text-[#13487a] dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', border: 'border-blue-100 dark:border-blue-900/50' },
     { name: 'Facebook Pages', value: stats.facebook, icon: Facebook, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', border: 'border-blue-100 dark:border-blue-900/50' },
     { name: 'YouTube Channels', value: stats.youtube, icon: Youtube, color: 'text-red-600 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', border: 'border-red-100 dark:border-red-900/50' },
   ];
@@ -186,139 +184,6 @@ export default function Dashboard() {
     toast.success('CSV Exported successfully');
   };
 
-  const exportToPDF = async () => {
-    if (rawAccounts.length === 0 && rawNewspapers.length === 0) {
-      toast.error('No data to export');
-      return;
-    }
-
-    const toastId = toast.loading('Preparing PDF with Bengali font support...');
-
-    try {
-      // Fetch Bengali font (Noto Sans Bengali)
-      // Using a more reliable CDN for the full TTF file
-      const fontUrl = 'https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts@master/hinted/ttf/NotoSansBengali/NotoSansBengali-Regular.ttf';
-      const response = await fetch(fontUrl);
-      if (!response.ok) throw new Error('Font download failed');
-      const fontBlob = await response.blob();
-      
-      const reader = new FileReader();
-      const fontBase64 = await new Promise<string>((resolve, reject) => {
-        reader.onloadend = () => {
-          const base64 = (reader.result as string).split(',')[1];
-          resolve(base64);
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(fontBlob);
-      });
-
-      const doc = new jsPDF();
-      
-      // Add the font to jsPDF
-      doc.addFileToVFS('NotoSansBengali.ttf', fontBase64);
-      doc.addFont('NotoSansBengali.ttf', 'NotoSansBengali', 'normal');
-      doc.setFont('NotoSansBengali');
-
-      // Sort accounts by category
-      const sortedAccounts = [...rawAccounts].sort((a, b) => {
-        const indexA = DEFAULT_ACCOUNT_CATEGORIES.indexOf(a.category || '');
-        const indexB = DEFAULT_ACCOUNT_CATEGORIES.indexOf(b.category || '');
-        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
-        return (a.category || '').localeCompare(b.category || '');
-      });
-
-      // Sort newspapers by category
-      const sortedNewspapers = [...rawNewspapers].sort((a, b) => {
-        const indexA = DEFAULT_NEWSPAPER_CATEGORIES.indexOf(a.category || '');
-        const indexB = DEFAULT_NEWSPAPER_CATEGORIES.indexOf(b.category || '');
-        if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
-        return (a.category || '').localeCompare(b.category || '');
-      });
-
-      // Add Accounts Section
-      doc.setFontSize(16);
-      doc.text('Social Hub - Facebook/YouTube Accounts', 14, 15);
-      const accountTableData = sortedAccounts.map(acc => [
-        acc.name,
-        acc.platform || '',
-        acc.category || 'Uncategorized',
-        acc.url
-      ]);
-      
-      autoTable(doc, {
-        head: [['Name', 'Platform', 'Category', 'URL']],
-        body: accountTableData,
-        startY: 20,
-        styles: { 
-          font: 'NotoSansBengali',
-          fontSize: 9,
-          cellPadding: 3
-        },
-        headStyles: { 
-          font: 'NotoSansBengali',
-          fillColor: [19, 72, 122],
-          textColor: [255, 255, 255]
-        },
-        columnStyles: { 3: { cellWidth: 80 } }
-      });
-
-      // Add Newspapers Section
-      doc.addPage();
-      doc.setFontSize(16);
-      doc.text('Social Hub - Newspapers', 14, 15);
-      const newspaperTableData = sortedNewspapers.map(news => [
-        news.name,
-        news.category || 'Uncategorized',
-        news.url
-      ]);
-
-      autoTable(doc, {
-        head: [['Name', 'Category', 'URL']],
-        body: newspaperTableData,
-        startY: 20,
-        styles: { 
-          font: 'NotoSansBengali',
-          fontSize: 9,
-          cellPadding: 3
-        },
-        headStyles: { 
-          font: 'NotoSansBengali',
-          fillColor: [19, 72, 122],
-          textColor: [255, 255, 255]
-        },
-        columnStyles: { 2: { cellWidth: 100 } }
-      });
-
-      doc.save(`social_hub_export_${new Date().toISOString().split('T')[0]}.pdf`);
-      toast.success('PDF Exported successfully', { id: toastId });
-    } catch (error) {
-      console.error('PDF Export Error:', error);
-      toast.error('Failed to export PDF with Bengali support. Using standard font.', { id: toastId });
-      
-      // Fallback to standard PDF if font loading fails
-      const doc = new jsPDF();
-      doc.setFontSize(16);
-      doc.text('Social Hub - Export (Standard Font)', 14, 15);
-      
-      const sortedAccounts = [...rawAccounts].sort((a, b) => (a.category || '').localeCompare(b.category || ''));
-      const accountTableData = sortedAccounts.map(acc => [acc.name, acc.platform || '', acc.category || 'Uncategorized', acc.url]);
-      
-      autoTable(doc, {
-        head: [['Name', 'Platform', 'Category', 'URL']],
-        body: accountTableData,
-        startY: 20,
-        styles: { fontSize: 8 },
-        columnStyles: { 3: { cellWidth: 80 } }
-      });
-
-      doc.save(`social_hub_export_fallback_${new Date().toISOString().split('T')[0]}.pdf`);
-    }
-  };
-
   return (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
@@ -348,15 +213,6 @@ export default function Dashboard() {
             >
               <FileJson className="h-4 w-4" />
               Export CSV
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={exportToPDF}
-              className="bg-white/10 border-white/20 text-white hover:bg-white/20 gap-2 backdrop-blur-sm"
-            >
-              <FileText className="h-4 w-4" />
-              Export PDF
             </Button>
           </div>
         </div>
@@ -481,41 +337,6 @@ export default function Dashboard() {
               </div>
             </motion.div>
 
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.7 }}
-              className="rounded-xl border border-blue-100 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-6 shadow-sm lg:col-span-2"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
-                    <Clock className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Recently Added Assets</h2>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                {recentAccounts.map((acc) => (
-                  <div key={acc.id} className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center shrink-0 overflow-hidden">
-                      {acc.thumbnail ? (
-                        <img src={acc.thumbnail} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <span className="text-xs font-bold text-slate-400">{acc.name.charAt(0)}</span>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{acc.name}</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{acc.category}</p>
-                    </div>
-                  </div>
-                ))}
-                {recentAccounts.length === 0 && (
-                  <p className="text-sm text-slate-500 py-4 text-center col-span-full">No recent activity found.</p>
-                )}
-              </div>
-            </motion.div>
           </div>
         )}
       </div>

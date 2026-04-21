@@ -1,14 +1,41 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { 
   Search, ExternalLink, Calendar, History, Trash2, Clock, Facebook, Info, 
   ChevronRight, LayoutGrid, MousePointer2, MapPin, Video, Image, Link as LinkIcon,
   User, Users, Globe, Twitter, Instagram, Youtube, Save, Plus, X as CloseIcon,
-  ChevronDown, ChevronUp, Layers, ListChecks, Tag, X, Music
+  ChevronDown, ChevronUp, Layers, ListChecks, Tag, X, Music, GripVertical, Sparkles, Zap, Bot, Loader2
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
+import { generateSearchQuery, getRelatedKeywords } from '../services/geminiService';
+
+// Firebase imports
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import { db, auth } from '../firebase';
+
+// dnd-kit imports
+import {
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  horizontalListSortingStrategy,
+  rectSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface SearchHistoryItem {
   id: string;
@@ -74,6 +101,72 @@ export default function SearchTool() {
   const [newKeywordInput, setNewKeywordInput] = useState('');
 
   const [showHistory, setShowHistory] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  
+  const [aiSearchInput, setAiSearchInput] = useState('');
+  const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [showAiAssistant, setShowAiAssistant] = useState(false);
+  
+  const [relatedKeywords, setRelatedKeywords] = useState<string[]>([]);
+  const [isFetchingRelated, setIsFetchingRelated] = useState(false);
+
+  // Sync with Firestore
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setIsSyncing(true);
+        try {
+          const userSettingsRef = doc(db, 'userSettings', user.uid);
+          const userSettingsSnap = await getDoc(userSettingsRef);
+          
+          if (userSettingsSnap.exists()) {
+            const data = userSettingsSnap.data();
+            if (data.quickKeywords && Array.isArray(data.quickKeywords)) {
+              // Only update if different to avoid infinite loop
+              setSavedKeywords(prev => {
+                if (JSON.stringify(prev) !== JSON.stringify(data.quickKeywords)) {
+                  return data.quickKeywords;
+                }
+                return prev;
+              });
+            }
+          }
+        } catch (error) {
+          console.error("Error fetching keywords from Firestore:", error);
+        } finally {
+          setIsSyncing(false);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const saveToFirestore = useCallback(async (keywords: string[]) => {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    try {
+      const userSettingsRef = doc(db, 'userSettings', user.uid);
+      const userSettingsSnap = await getDoc(userSettingsRef);
+      
+      if (userSettingsSnap.exists()) {
+        await updateDoc(userSettingsRef, {
+          quickKeywords: keywords,
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        await setDoc(userSettingsRef, {
+          quickKeywords: keywords,
+          authorUid: user.uid,
+          updatedAt: serverTimestamp(),
+          categories: []
+        });
+      }
+    } catch (error) {
+      console.error("Error saving keywords to Firestore:", error);
+    }
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(history));
@@ -85,7 +178,10 @@ export default function SearchTool() {
 
   useEffect(() => {
     localStorage.setItem(SEARCH_KEYWORDS_KEY, JSON.stringify(savedKeywords));
-  }, [savedKeywords]);
+    if (!isSyncing) {
+      saveToFirestore(savedKeywords);
+    }
+  }, [savedKeywords, isSyncing, saveToFirestore]);
 
   const constructFBUrl = (k: string, d: string, loc?: string, pType?: string, src?: string) => {
     const filterObj: any = {};
@@ -98,7 +194,8 @@ export default function SearchTool() {
         start_month: `${year}-${month}`,
         end_month: `${year}-${month}`,
         start_day: `${year}-${month}-${day}`,
-        end_day: `${year}-${month}-${day}`
+        end_day: `${year}-${month}-${day}`,
+        recent: true
       };
 
       filterObj["rp_creation_time:0"] = JSON.stringify({
@@ -202,14 +299,42 @@ export default function SearchTool() {
     const k = encodeURIComponent(keyword.trim());
     
     switch(platform) {
-      case 'x': url = `https://x.com/search?q=${k}&src=typed_query`; break;
+      case 'x': url = `https://x.com/search?q=${k}&f=live`; break;
       case 'ig': url = `https://www.instagram.com/explore/tags/${k.replace(/%20/g, '')}/`; break;
-      case 'yt': url = `https://www.youtube.com/results?search_query=${k}`; break;
-      case 'tiktok': url = `https://www.tiktok.com/search?q=${k}`; break;
+      case 'yt': url = `https://www.youtube.com/results?search_query=${k}&sp=CAI%253D`; break;
+      case 'tiktok': url = `https://www.tiktok.com/search?q=${k}&type=video&sort_type=1`; break;
     }
     
     window.open(url, '_blank');
   };
+
+  const fetchRelatedKeywords = async (k: string) => {
+    if (!k || k.length < 3) {
+      setRelatedKeywords([]);
+      return;
+    }
+    setIsFetchingRelated(true);
+    try {
+      const suggestions = await getRelatedKeywords(k);
+      setRelatedKeywords(suggestions);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsFetchingRelated(false);
+    }
+  };
+
+  // Debounce related keywords fetch
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (keyword.trim()) {
+        fetchRelatedKeywords(keyword);
+      } else {
+        setRelatedKeywords([]);
+      }
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [keyword]);
 
   const saveTemplate = () => {
     if (!keyword.trim()) {
@@ -286,6 +411,107 @@ export default function SearchTool() {
     setDate(d.toISOString().split('T')[0]);
   };
 
+  const handleAiQuery = async () => {
+    if (!aiSearchInput.trim()) {
+      toast.error('Please describe what you are looking for');
+      return;
+    }
+    setAiSearchLoading(true);
+    try {
+      const refinedQuery = await generateSearchQuery(aiSearchInput);
+      setKeyword(refinedQuery);
+      setAiSearchInput('');
+      setShowAiAssistant(false);
+      toast.success('AI refined your search query');
+    } catch (error) {
+      toast.error('Failed to generate AI query');
+    } finally {
+      setAiSearchLoading(false);
+    }
+  };
+
+  const handleIntelBlast = () => {
+    if (!keyword.trim()) {
+      toast.error('Enter a keyword to blast across platforms');
+      return;
+    }
+    const platforms: ('x' | 'ig' | 'yt' | 'tiktok')[] = ['x', 'yt', 'tiktok'];
+    platforms.forEach(p => handleOtherPlatform(p));
+    handleSearch(); // Also open Facebook
+    toast.success('Blasting search across all platforms!');
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5, // 5px movement required before drag starts to allow clicks
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    
+    if (over && active.id !== over.id) {
+      setSavedKeywords((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over.id as string);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const SortableKeyword = ({ k, onSelect, onRemove }: { k: string, onSelect: (k: string) => void, onRemove: (k: string) => void }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging
+    } = useSortable({ id: k });
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      zIndex: isDragging ? 50 : 0,
+      opacity: isDragging ? 0.5 : 1,
+    };
+
+    return (
+      <div 
+        ref={setNodeRef} 
+        style={style}
+        className="relative flex items-center"
+      >
+        <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm hover:border-[#13487a] transition-colors group">
+          <div 
+            {...attributes} 
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing px-1.5 py-1.5 bg-slate-50 dark:bg-slate-900 border-r border-slate-100 dark:border-slate-700 text-slate-300 group-hover:text-slate-500 transition-colors"
+          >
+            <GripVertical className="h-3 w-3" />
+          </div>
+          <button
+            onClick={() => onSelect(k)}
+            className="px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-[#13487a] hover:text-white transition-all"
+          >
+            {k}
+          </button>
+          <button 
+            onClick={() => onRemove(k)}
+            className="p-1.5 text-slate-300 hover:text-red-500 transition-colors border-l border-slate-100 dark:border-slate-700"
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderQuickKeywords = (onSelect: (k: string) => void) => (
     <div className="bg-slate-50 dark:bg-slate-800/30 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
       <div className="flex items-center justify-between">
@@ -308,28 +534,31 @@ export default function SearchTool() {
         </div>
       </div>
       
-      <div className="flex flex-wrap gap-2">
-        {savedKeywords.length === 0 ? (
-          <p className="text-xs text-slate-400 italic py-2">No quick keywords added yet.</p>
-        ) : (
-          savedKeywords.map((k, idx) => (
-            <div key={idx} className="group relative flex items-center">
-              <button
-                onClick={() => onSelect(k)}
-                className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-[#13487a] hover:text-white hover:border-[#13487a] transition-all shadow-sm"
-              >
-                {k}
-              </button>
-              <button 
-                onClick={() => removeSavedKeyword(k)}
-                className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-              >
-                <X className="h-2.5 w-2.5" />
-              </button>
-            </div>
-          ))
-        )}
-      </div>
+      <DndContext 
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext 
+          items={savedKeywords}
+          strategy={rectSortingStrategy}
+        >
+          <div className="flex flex-wrap gap-2">
+            {savedKeywords.length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-2">No quick keywords added yet.</p>
+            ) : (
+              savedKeywords.map((k) => (
+                <SortableKeyword 
+                  key={k} 
+                  k={k} 
+                  onSelect={onSelect} 
+                  onRemove={removeSavedKeyword} 
+                />
+              ))
+            )}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 
@@ -409,7 +638,19 @@ export default function SearchTool() {
                           {activeTab === 'custom' ? 'Precision search with deep filters' : 'Search multiple keywords at once'}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => setShowAiAssistant(!showAiAssistant)}
+                          className={cn(
+                            "gap-2 rounded-xl border border-indigo-100 dark:border-indigo-900/30 font-bold transition-all",
+                            showAiAssistant ? "bg-indigo-600 text-white hover:bg-indigo-700" : "text-indigo-600 hover:bg-indigo-50"
+                          )}
+                        >
+                          <Bot className="h-4 w-4" />
+                          AI Assistant
+                        </Button>
                         <Button 
                           variant="ghost" 
                           size="sm" 
@@ -423,13 +664,49 @@ export default function SearchTool() {
                           variant="ghost" 
                           size="sm" 
                           onClick={saveTemplate}
-                          className="text-[#13487a] dark:text-[#13487a] gap-2 hover:bg-[#13487a]/10 dark:hover:bg-[#13487a]/20"
+                          className="text-[#13487a] dark:text-[#13487a] gap-2 hover:bg-[#13487a]/10 dark:hover:bg-[#13487a]/20 font-bold"
                         >
                           <Save className="h-4 w-4" />
                           Save Template
                         </Button>
                       </div>
                     </div>
+
+                  {/* AI Search Assistant Block */}
+                  <AnimatePresence>
+                    {showAiAssistant && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0, y: -10 }}
+                        animate={{ opacity: 1, height: 'auto', y: 0 }}
+                        exit={{ opacity: 0, height: 0, y: -10 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-indigo-600" />
+                            <span className="text-sm font-bold text-indigo-900 dark:text-indigo-300">Tell AI what to find...</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <input 
+                              type="text" 
+                              placeholder="e.g. 'খুলনায় অগ্নিকাণ্ডের খবর গত ৩ দিনের'..." 
+                              value={aiSearchInput}
+                              onChange={(e) => setAiSearchInput(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleAiQuery()}
+                              className="flex-1 px-4 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-800 text-sm outline-none focus:ring-2 focus:ring-indigo-500/20"
+                            />
+                            <Button 
+                              onClick={handleAiQuery}
+                              disabled={aiSearchLoading}
+                              className="bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl px-4"
+                            >
+                              {aiSearchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refine Query'}
+                            </Button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
 
                   <div className="space-y-6">
                     {activeTab === 'custom' ? (
@@ -446,6 +723,29 @@ export default function SearchTool() {
                               className="w-full pl-12 pr-4 py-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-slate-900 dark:text-white focus:ring-4 focus:ring-[#13487a]/10 focus:border-[#13487a] outline-none transition-all text-lg"
                             />
                           </div>
+                          
+                          {/* Related Keywords Suggestions */}
+                          <AnimatePresence>
+                            {relatedKeywords.length > 0 && (
+                              <motion.div 
+                                initial={{ opacity: 0, y: -5 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -5 }}
+                                className="flex flex-wrap gap-2 mt-2 ml-1"
+                              >
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2 w-full">Related Keywords:</span>
+                                {relatedKeywords.map((rk, idx) => (
+                                  <button
+                                    key={idx}
+                                    onClick={() => setKeyword(rk)}
+                                    className="px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 text-[10px] sm:text-xs font-semibold border border-indigo-100 dark:border-indigo-800/30 hover:bg-indigo-100 transition-colors"
+                                  >
+                                    + {rk}
+                                  </button>
+                                ))}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                           <p className="text-[10px] text-slate-400 ml-2">Tip: Use AND, OR, NOT for boolean search logic</p>
                         </div>
 
@@ -586,7 +886,7 @@ export default function SearchTool() {
                       <Button type="button" variant="outline" size="sm" onClick={() => setQuickDate(7)} className="rounded-full px-4">7 Days Ago</Button>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
                       <Button 
                         onClick={activeTab === 'custom' ? () => handleSearch() : handleBatchSearch}
                         className="py-4 rounded-xl bg-[#13487a] hover:bg-[#13487a]/90 text-white text-xs sm:text-sm font-bold shadow-lg shadow-[#13487a]/20 transition-all hover:scale-[1.01] active:scale-[0.99] gap-2"
@@ -624,6 +924,14 @@ export default function SearchTool() {
                           >
                             <Instagram className="h-4 w-4" />
                             <span className="truncate">Instagram</span>
+                          </Button>
+                          
+                          <Button 
+                            onClick={handleIntelBlast}
+                            className="py-4 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white text-xs sm:text-sm font-bold shadow-lg shadow-indigo-500/20 transition-all hover:scale-[1.05] border-none gap-2 col-span-2 sm:col-span-1"
+                          >
+                            <Zap className="h-4 w-4 text-yellow-300" />
+                            <span className="truncate uppercase tracking-tighter">Intel Blast</span>
                           </Button>
                         </>
                       )}
