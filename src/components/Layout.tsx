@@ -235,6 +235,7 @@ export default function Layout({ user }: { user: User | null }) {
                   className="ml-4 space-y-1 border-l border-slate-200 dark:border-slate-800 pl-2 overflow-hidden"
                 >
                   {Object.entries(accountsByCategory)
+                    .filter(([category]) => category !== 'Foreign English Newspaper' && category !== 'Uncategorized')
                     .sort(([a], [b]) => {
                       const indexA = categories.indexOf(a);
                       const indexB = categories.indexOf(b);

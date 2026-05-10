@@ -26,7 +26,6 @@ export default function AccountModal({ isOpen, onClose, account }: AccountModalP
   const [thumbnail, setThumbnail] = useState('');
   const [category, setCategory] = useState('');
   const [notes, setNotes] = useState('');
-  const [status, setStatus] = useState<'Active' | 'Broken' | 'Unknown'>('Unknown');
   const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
@@ -46,7 +45,6 @@ export default function AccountModal({ isOpen, onClose, account }: AccountModalP
       setThumbnail(account.thumbnail || '');
       setCategory(account.category);
       setNotes(account.notes || '');
-      setStatus(account.status || 'Unknown');
     } else {
       setName('');
       setPlatform('Facebook');
@@ -54,7 +52,6 @@ export default function AccountModal({ isOpen, onClose, account }: AccountModalP
       setThumbnail('');
       setCategory('');
       setNotes('');
-      setStatus('Unknown');
     }
     setError('');
   }, [account, isOpen]);
@@ -78,16 +75,15 @@ export default function AccountModal({ isOpen, onClose, account }: AccountModalP
 
     setLoading(true);
     setError('');
+    const toastId = toast.loading(account ? 'Updating link...' : 'Saving link...');
 
-    const accountData = {
+    const accountData: any = {
       name,
       platform,
       url,
       thumbnail,
       category,
-      status,
       ...(notes ? { notes } : {}),
-      authorUid: auth.currentUser.uid,
       updatedAt: serverTimestamp(),
     };
 
@@ -96,16 +92,20 @@ export default function AccountModal({ isOpen, onClose, account }: AccountModalP
         // Update
         const docRef = doc(db, 'accounts', account.id);
         await updateDoc(docRef, accountData);
+        toast.success('Save Successfully', { id: toastId });
       } else {
         // Create
         await addDoc(collection(db, 'accounts'), {
           ...accountData,
+          authorUid: auth.currentUser.uid,
           createdAt: serverTimestamp(),
         });
+        toast.success('Save Successfully', { id: toastId });
       }
       onClose();
     } catch (err: any) {
       handleFirestoreError(err, account ? OperationType.UPDATE : OperationType.WRITE, account ? `accounts/${account.id}` : 'accounts');
+      toast.error('Failed to save link', { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -329,20 +329,6 @@ export default function AccountModal({ isOpen, onClose, account }: AccountModalP
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-[#13487a]">Link Status</label>
-            <Select value={status} onValueChange={(v: any) => setStatus(v)}>
-              <SelectTrigger className="border-[#13487a]/30 focus:ring-[#13487a]">
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Unknown">Unknown</SelectItem>
-                <SelectItem value="Active">Active</SelectItem>
-                <SelectItem value="Broken">Broken</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           <div className="space-y-2">

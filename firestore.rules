@@ -30,10 +30,13 @@ service cloud.firestore {
       return url is string && url.size() > 0 && url.size() <= 2000;
     }
     
-    function isValidAccount(data) {
+    function isValidAccount(data, isCreate) {
       let validPlatforms = ['Facebook', 'YouTube'];
+      let requiredFields = ['name', 'platform', 'url', 'category', 'updatedAt'];
+      let createFields = ['authorUid', 'createdAt'];
       
-      return hasRequiredFields(['name', 'platform', 'url', 'category', 'authorUid', 'createdAt', 'updatedAt']) &&
+      return data.keys().hasAll(requiredFields) &&
+             (isCreate ? data.keys().hasAll(createFields) : true) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
              data.platform in validPlatforms &&
              isValidUrl(data.url) && data.url.size() <= 1000 &&
@@ -41,13 +44,14 @@ service cloud.firestore {
              data.category is string && data.category.size() > 0 && data.category.size() <= 100 &&
              (!('notes' in data) || (data.notes is string && data.notes.size() <= 2000)) &&
              (!('order' in data) || data.order is number) &&
-             data.authorUid is string && data.authorUid.size() > 0 &&
-             data.createdAt is timestamp &&
+             (!('status' in data) || data.status is string) &&
+             (!('authorUid' in data) || (data.authorUid is string && data.authorUid.size() > 0)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
              data.updatedAt is timestamp;
     }
 
     function isValidUserSettings(data) {
-      return hasRequiredFields(['authorUid', 'updatedAt']) &&
+      return data.keys().hasAll(['authorUid', 'updatedAt']) &&
              (!('categories' in data) || (data.categories is list && data.categories.size() <= 100)) &&
              (!('newspaperCategories' in data) || (data.newspaperCategories is list && data.newspaperCategories.size() <= 100)) &&
              (!('quickKeywords' in data) || (data.quickKeywords is list && data.quickKeywords.size() <= 100)) &&
@@ -55,20 +59,24 @@ service cloud.firestore {
              data.updatedAt is timestamp;
     }
 
-    function isValidNewspaper(data) {
-      return hasRequiredFields(['name', 'url', 'authorUid', 'createdAt', 'updatedAt']) &&
+    function isValidNewspaper(data, isCreate) {
+      let requiredFields = ['name', 'url', 'updatedAt'];
+      let createFields = ['authorUid', 'createdAt'];
+
+      return data.keys().hasAll(requiredFields) &&
+             (isCreate ? data.keys().hasAll(createFields) : true) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 500 &&
              isValidUrl(data.url) && data.url.size() <= 2000 &&
              (!('thumbnail' in data) || (data.thumbnail is string && data.thumbnail.size() <= 5000000)) &&
              (!('category' in data) || (data.category is string && data.category.size() <= 200)) &&
              (!('order' in data) || data.order is number) &&
-             data.authorUid is string && data.authorUid.size() > 0 &&
-             data.createdAt is timestamp &&
+             (!('authorUid' in data) || (data.authorUid is string && data.authorUid.size() > 0)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
              data.updatedAt is timestamp;
     }
 
     function isValidCategory(data) {
-      return hasRequiredFields(['name', 'authorUid', 'createdAt']) &&
+      return data.keys().hasAll(['name', 'authorUid', 'createdAt']) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
              data.authorUid is string && data.authorUid.size() > 0 &&
              data.createdAt is timestamp;
@@ -80,13 +88,10 @@ service cloud.firestore {
     match /accounts/{accountId} {
       allow read: if true;
       allow create: if isAuthenticated() && 
-                    uidUnchanged() && 
-                    isValidAccount(request.resource.data);
-      allow update: if isDocOwner() && 
-                    uidNotModified() && 
-                    request.resource.data.createdAt == resource.data.createdAt &&
-                    isValidAccount(request.resource.data);
-      allow delete: if isDocOwner();
+                    isValidAccount(request.resource.data, true);
+      allow update: if isAuthenticated() && 
+                    isValidAccount(request.resource.data, false);
+      allow delete: if isAuthenticated();
     }
 
     match /settings/{settingId} {
@@ -97,10 +102,8 @@ service cloud.firestore {
     match /userSettings/{settingId} {
       allow read: if isAuthenticated() && request.auth.uid == settingId;
       allow create: if isAuthenticated() && request.auth.uid == settingId && 
-                    uidUnchanged() && 
                     isValidUserSettings(request.resource.data);
       allow update: if isAuthenticated() && request.auth.uid == settingId && 
-                    uidNotModified() && 
                     isValidUserSettings(request.resource.data);
       allow delete: if isAuthenticated() && request.auth.uid == settingId;
     }
@@ -108,25 +111,19 @@ service cloud.firestore {
     match /newspapers/{newspaperId} {
       allow read: if true;
       allow create: if isAuthenticated() && 
-                    uidUnchanged() && 
-                    isValidNewspaper(request.resource.data);
-      allow update: if isDocOwner() && 
-                    uidNotModified() && 
-                    request.resource.data.createdAt == resource.data.createdAt &&
-                    isValidNewspaper(request.resource.data);
-      allow delete: if isDocOwner();
+                    isValidNewspaper(request.resource.data, true);
+      allow update: if isAuthenticated() && 
+                    isValidNewspaper(request.resource.data, false);
+      allow delete: if isAuthenticated();
     }
 
     match /newspaper_categories/{categoryId} {
-      allow read: if isDocOwner();
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && 
-                    uidUnchanged() && 
                     isValidCategory(request.resource.data);
-      allow update: if isDocOwner() && 
-                    uidNotModified() && 
-                    request.resource.data.createdAt == resource.data.createdAt &&
+      allow update: if isAuthenticated() && 
                     isValidCategory(request.resource.data);
-      allow delete: if isDocOwner();
+      allow delete: if isAuthenticated();
     }
   }
 }

@@ -85,6 +85,7 @@ export default function Dashboard() {
       });
 
       const formattedCatData = Object.entries(catMap)
+        .filter(([name]) => name !== 'Foreign English Newspaper' && name !== 'Uncategorized')
         .map(([name, value]) => ({ name, value }))
         .sort((a, b) => b.value - a.value)
         .slice(0, 8);

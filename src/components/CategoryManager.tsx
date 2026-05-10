@@ -6,8 +6,10 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
-import { GripVertical, Trash2, Edit2, Plus, ArrowUp, ArrowDown } from 'lucide-react';
+import { GripVertical, Trash2, Edit2, Plus, ArrowUp, ArrowDown, ChevronRight, ChevronDown } from 'lucide-react';
 import { useCategories } from '../hooks/useCategories';
+import { toast } from 'sonner';
+import { cn } from '../lib/utils';
 import {
   DndContext,
   closestCenter,
@@ -38,7 +40,11 @@ function SortableCategoryItem({
   handleEditStart, 
   handleDelete,
   isSelected,
-  onToggleSelect
+  onToggleSelect,
+  isParent,
+  isExpanded,
+  onToggleExpand,
+  isSub
 }: any) {
   const {
     attributes,
@@ -57,7 +63,11 @@ function SortableCategoryItem({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className={`flex items-center gap-2 p-2 bg-slate-50 border border-slate-100 rounded-md group hover:bg-[#13487a] hover:border-[#13487a] transition-all duration-200 ${isDragging ? 'shadow-md relative' : ''}`}>
+    <div ref={setNodeRef} style={style} className={cn(
+      "flex items-center gap-2 p-2 bg-slate-50 border border-slate-100 rounded-md group hover:bg-[#13487a] hover:border-[#13487a] transition-all duration-200",
+      isDragging && "shadow-md relative",
+      isSub && "ml-8 bg-slate-50/50 border-dashed"
+    )}>
       <input 
         type="checkbox" 
         checked={isSelected} 
@@ -82,7 +92,33 @@ function SortableCategoryItem({
         </div>
       ) : (
         <>
-          <span className="flex-1 font-medium text-slate-700 group-hover:text-white transition-colors">{cat}</span>
+          <div className="flex-1 flex items-center gap-2">
+            <span className={cn(
+              "font-medium transition-colors",
+              isDragging ? "text-slate-700" : "text-slate-700 group-hover:text-white",
+              isParent && "font-bold"
+            )}>
+              {isSub ? cat.split(' > ').pop() : cat}
+            </span>
+            {isParent && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 ml-auto text-slate-400 group-hover:text-white hover:bg-white/20"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleExpand(cat);
+                }}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-5 w-5 transition-transform duration-200" />
+                ) : (
+                  <ChevronRight className="h-5 w-5 transition-transform duration-200" />
+                )}
+              </Button>
+            )}
+          </div>
           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
             <Button size="icon" variant="ghost" className="h-8 w-8 text-slate-500 hover:text-white hover:bg-white/20 group-hover:text-white/80" onClick={() => handleEditStart(index, cat)}>
               <Edit2 className="h-4 w-4" />
@@ -112,6 +148,13 @@ export default function CategoryManager({ isOpen, onClose, type = 'accounts', ex
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<number | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+
+  const toggleExpand = (cat: string) => {
+    setExpandedCategories(prev => 
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  };
 
   const handleToggleSelect = (cat: string) => {
     setSelectedCategories(prev => 
@@ -131,6 +174,7 @@ export default function CategoryManager({ isOpen, onClose, type = 'accounts', ex
     if (!newCategory.trim() || categories.includes(newCategory.trim())) return;
     await updateCategories([...categories, newCategory.trim()]);
     setNewCategory('');
+    toast.success('Save Successfully');
   };
 
   const handleDelete = (index: number) => {
@@ -145,6 +189,7 @@ export default function CategoryManager({ isOpen, onClose, type = 'accounts', ex
     await updateCategories(newCats);
     setCategoryToDelete(null);
     setIsDeleteModalOpen(false);
+    toast.success('Save Successfully');
   };
 
   const handleEditStart = (index: number, value: string) => {
@@ -171,6 +216,7 @@ export default function CategoryManager({ isOpen, onClose, type = 'accounts', ex
       const newCats = [...categories];
       newCats[index] = newName;
       await updateCategories(newCats);
+      toast.success('Save Successfully');
 
       // 2. Update all items that use this category
       if (auth.currentUser) {
@@ -265,19 +311,56 @@ export default function CategoryManager({ isOpen, onClose, type = 'accounts', ex
         </DialogHeader>
         
         <div className="space-y-4 mt-4 flex-1 flex flex-col overflow-hidden">
-          <div className="flex gap-2">
-          <Input 
-            placeholder="New category name..." 
-            value={newCategory} 
-            onChange={(e) => setNewCategory(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-            className="border-blue-100 focus-visible:ring-[#13487a]"
-          />
-          <Button onClick={handleAdd} className="bg-[#13487a] hover:bg-[#13487a]/90 text-white shrink-0">
-            <Plus className="h-4 w-4 mr-2" />
-            Add
-          </Button>
-        </div>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Input 
+                placeholder="New category name..." 
+                value={newCategory} 
+                onChange={(e) => setNewCategory(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                className="border-blue-100 focus-visible:ring-[#13487a]"
+              />
+              <Button onClick={handleAdd} className="bg-[#13487a] hover:bg-[#13487a]/90 text-white shrink-0">
+                <Plus className="h-4 w-4 mr-2" />
+                Add
+              </Button>
+            </div>
+            
+            {type === 'newspapers' && (
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="text-[10px] h-7 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300"
+                  onClick={async () => {
+                    const subs = [
+                      "International English Newspaper > Indian Newspaper",
+                      "International English Newspaper > Myanmar Newspaper",
+                      "International English Newspaper > Pakistan Newspaper",
+                      "International English Newspaper > Other's"
+                    ];
+                    const newCats = [...categories];
+                    let added = false;
+                    subs.forEach(s => {
+                      if (!newCats.includes(s)) {
+                        newCats.push(s);
+                        added = true;
+                      }
+                    });
+                    if (added) {
+                      await updateCategories(newCats);
+                      toast.success('Standard subcategories added');
+                    } else {
+                      toast.info('Subcategories already exist');
+                    }
+                  }}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add International Subcategories
+                </Button>
+              </div>
+            )}
+          </div>
 
         <div className="mt-4 flex-1 overflow-y-auto pr-2 space-y-2">
           {categories.length > 0 && (
@@ -301,23 +384,56 @@ export default function CategoryManager({ isOpen, onClose, type = 'accounts', ex
               items={categories}
               strategy={verticalListSortingStrategy}
             >
-              {categories.map((cat, index) => (
-                <SortableCategoryItem
-                  key={cat}
-                  cat={cat}
-                  index={index}
-                  categoriesLength={categories.length}
-                  editingIndex={editingIndex}
-                  editingValue={editingValue}
-                  setEditingValue={setEditingValue}
-                  handleEditSave={handleEditSave}
-                  setEditingIndex={setEditingIndex}
-                  handleEditStart={handleEditStart}
-                  handleDelete={handleDelete}
-                  isSelected={selectedCategories.includes(cat)}
-                  onToggleSelect={handleToggleSelect}
-                />
-              ))}
+              {(() => {
+                const grouped: { [key: string]: string[] } = {};
+                const topLevel: string[] = [];
+                
+                categories.forEach(cat => {
+                  if (cat.includes(' > ')) {
+                    const parent = cat.split(' > ')[0];
+                    if (!grouped[parent]) grouped[parent] = [];
+                    grouped[parent].push(cat);
+                  } else {
+                    topLevel.push(cat);
+                  }
+                });
+
+                const visibleCats: { cat: string, isSub: boolean, parentCat: string | null }[] = [];
+                topLevel.forEach(parent => {
+                  visibleCats.push({ cat: parent, isSub: false, parentCat: null });
+                  if (expandedCategories.includes(parent)) {
+                    (grouped[parent] || []).forEach(child => {
+                      visibleCats.push({ cat: child, isSub: true, parentCat: parent });
+                    });
+                  }
+                });
+
+                return visibleCats.map((item, idx) => {
+                  const catIndex = categories.indexOf(item.cat);
+                  const isParent = !!grouped[item.cat];
+                  return (
+                    <SortableCategoryItem
+                      key={item.cat}
+                      cat={item.cat}
+                      index={catIndex}
+                      categoriesLength={categories.length}
+                      editingIndex={editingIndex}
+                      editingValue={editingValue}
+                      setEditingValue={setEditingValue}
+                      handleEditSave={handleEditSave}
+                      setEditingIndex={setEditingIndex}
+                      handleEditStart={handleEditStart}
+                      handleDelete={handleDelete}
+                      isSelected={selectedCategories.includes(item.cat)}
+                      onToggleSelect={handleToggleSelect}
+                      isParent={isParent}
+                      isExpanded={expandedCategories.includes(item.cat)}
+                      onToggleExpand={toggleExpand}
+                      isSub={item.isSub}
+                    />
+                  );
+                });
+              })()}
             </SortableContext>
           </DndContext>
           {categories.length === 0 && (

@@ -4,7 +4,7 @@ import { db, auth } from '../firebase';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Plus, Edit, Trash2, ExternalLink, Search, Newspaper as NewspaperIcon, Loader2, LayoutGrid, List, Filter, CheckSquare, Square, X, Settings, Check, ArrowUp, ArrowDown, Sparkles, Settings2, GripVertical, ImagePlus, Upload, FolderInput, ClipboardPaste, Link as LinkIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, ExternalLink, Search, Newspaper as NewspaperIcon, Loader2, LayoutGrid, List, Filter, CheckSquare, Square, X, Settings, Check, ArrowUp, ArrowDown, Sparkles, Settings2, GripVertical, ImagePlus, Upload, FolderInput, ClipboardPaste, Link as LinkIcon, ChevronRight, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { compressImage, extractImageUrlFromHtml } from '../lib/image-utils';
@@ -163,7 +163,9 @@ const SortableNewspaperItem = React.memo(({
         
         <div className="p-3 text-center">
           <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{newspaper.name}</h3>
-          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-wider font-semibold">{newspaper.category}</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-wider font-semibold">
+            {newspaper.category?.includes(' > ') ? newspaper.category.split(' > ').pop() : newspaper.category}
+          </p>
         </div>
       </motion.div>
     );
@@ -214,7 +216,7 @@ const SortableNewspaperItem = React.memo(({
       
       <div className="flex items-center gap-4">
         <span className="hidden sm:inline px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold uppercase tracking-wider">
-          {newspaper.category}
+          {newspaper.category?.includes(' > ') ? newspaper.category.split(' > ').pop() : newspaper.category}
         </span>
         <div className="flex items-center gap-1">
           {isEditMode ? (
@@ -259,6 +261,13 @@ export default function Newspapers() {
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+
+  const toggleCategoryExpand = (cat: string) => {
+    setExpandedCategories(prev => 
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  };
 
   useEffect(() => {
     const q = query(collection(db, 'newspapers'));
@@ -381,7 +390,9 @@ export default function Newspapers() {
     return newspapers.filter(n => {
       const matchesSearch = n.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           n.url.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = selectedCategory === "All Categories" || n.category === selectedCategory;
+      const matchesCategory = selectedCategory === "All Categories" || 
+                          n.category === selectedCategory ||
+                          (n.category?.startsWith(selectedCategory + " > "));
       return matchesSearch && matchesCategory;
     });
   }, [newspapers, searchTerm, selectedCategory]);
@@ -750,13 +761,14 @@ export default function Newspapers() {
     }
 
     setIsSaving(true);
+    const toastId = toast.loading(currentNewspaper ? 'Updating newspaper...' : 'Saving newspaper...');
     try {
       if (currentNewspaper) {
         await updateDoc(doc(db, 'newspapers', currentNewspaper.id), {
           ...formData,
           updatedAt: serverTimestamp()
         });
-        toast.success('Newspaper updated successfully');
+        toast.success('Save Successfully', { id: toastId });
       } else {
         await addDoc(collection(db, 'newspapers'), {
           ...formData,
@@ -764,11 +776,12 @@ export default function Newspapers() {
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
-        toast.success('Newspaper added successfully');
+        toast.success('Save Successfully', { id: toastId });
       }
       setIsModalOpen(false);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, 'newspapers');
+      toast.error('Failed to save newspaper', { id: toastId });
     } finally {
       setIsSaving(false);
     }
@@ -1038,18 +1051,73 @@ export default function Newspapers() {
             />
           </div>
           
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-40 sm:w-48 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+          <Select value={selectedCategory} onValueChange={(val) => {
+            // If it's a parent category with children, we might want to expand it instead of selecting
+            // But usually users want to filter by the parent too. 
+            // To support both, we'll expand on click if it has children.
+            setSelectedCategory(val);
+          }}>
+            <SelectTrigger className="w-40 sm:w-56 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-slate-400" />
                 <SelectValue placeholder="Category" />
               </div>
             </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="All Categories">All Categories</SelectItem>
-              {categories.map(cat => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
+            <SelectContent className="max-h-[80vh]">
+              <SelectItem value="All Categories" className="font-bold">All Categories</SelectItem>
+              {(() => {
+                const grouped: { [key: string]: string[] } = {};
+                const topLevel: string[] = [];
+                
+                categories.forEach(cat => {
+                  if (cat.includes(' > ')) {
+                    const parent = cat.split(' > ')[0];
+                    if (!grouped[parent]) grouped[parent] = [];
+                    grouped[parent].push(cat);
+                  } else {
+                    topLevel.push(cat);
+                  }
+                });
+
+                return topLevel.map(parentCat => {
+                  const children = grouped[parentCat] || [];
+                  const isExpanded = expandedCategories.includes(parentCat);
+                  const hasChildren = children.length > 0;
+
+                  return (
+                    <React.Fragment key={parentCat}>
+                      <div className="flex items-center w-full">
+                        <SelectItem value={parentCat} className="flex-1">
+                          <span className={cn(hasChildren && "font-semibold")}>{parentCat}</span>
+                        </SelectItem>
+                        {hasChildren && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 ml-auto hover:bg-slate-100"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              toggleCategoryExpand(parentCat);
+                            }}
+                          >
+                            {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                          </Button>
+                        )}
+                      </div>
+                      
+                      {hasChildren && isExpanded && children.map(childCat => (
+                        <SelectItem key={childCat} value={childCat} className="ml-4 text-slate-500 text-[13px]">
+                          <div className="flex items-center gap-1.5">
+                            <ChevronRight className="h-4 w-4 opacity-50" />
+                            {childCat.split(' > ').pop()}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </React.Fragment>
+                  );
+                });
+              })()}
             </SelectContent>
           </Select>
 

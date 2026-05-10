@@ -48,8 +48,6 @@ export interface Account {
   category: string;
   notes?: string;
   order?: number;
-  status?: 'Active' | 'Broken' | 'Unknown';
-  lastChecked?: any;
   authorUid: string;
   createdAt: any;
   updatedAt: any;
@@ -86,8 +84,7 @@ const SortableAccountRow = memo(({
   onMove,
   isVisited,
   onVisit,
-  getVisitCount,
-  onVerify
+  getVisitCount
 }: { 
   account: Account, 
   openEditModal: (acc: Account) => void, 
@@ -98,8 +95,7 @@ const SortableAccountRow = memo(({
   onMove: (id: string, newCategory: string) => void,
   isVisited: (id: string) => boolean,
   onVisit: (id: string) => void,
-  getVisitCount: (id: string) => number,
-  onVerify: (id: string, status: 'Active' | 'Broken') => void
+  getVisitCount: (id: string) => number
 }) => {
   const {
     attributes,
@@ -181,17 +177,6 @@ const SortableAccountRow = memo(({
             )}
             <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
           </a>
-          {account.status && (
-            <Badge 
-              variant="outline" 
-              className={cn(
-                "text-[10px] h-4 px-1.5 border-0",
-                account.status === 'Active' ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
-              )}
-            >
-              {account.status}
-            </Badge>
-          )}
         </div>
         {account.notes && (
           <p className="text-xs text-slate-500 font-normal mt-1 truncate max-w-xs group-hover:text-blue-100">
@@ -201,26 +186,6 @@ const SortableAccountRow = memo(({
       </TableCell>
       <TableCell className="text-right w-32">
         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <ActionTooltip content="Verify Link Status">
-            <div className="flex gap-0.5">
-              <Button 
-                size="icon" 
-                variant="ghost" 
-                className="h-8 w-8 text-emerald-500 group-hover:text-emerald-300 hover:bg-emerald-500/20" 
-                onClick={() => onVerify(account.id, 'Active')}
-              >
-                <CheckSquare className="h-4 w-4" />
-              </Button>
-              <Button 
-                size="icon" 
-                variant="ghost" 
-                className="h-8 w-8 text-red-500 group-hover:text-red-300 hover:bg-red-500/20" 
-                onClick={() => onVerify(account.id, 'Broken')}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </ActionTooltip>
           <ActionTooltip content="Move to Category">
             <div>
               <Select onValueChange={(val) => onMove(account.id, val)}>
@@ -461,7 +426,9 @@ export default function Accounts() {
 
   const allCategories = useMemo(() => {
     // Only show categories that are in the official list from Manage Categories
-    return categories.sort((a, b) => {
+    return categories
+      .filter(cat => cat !== 'Foreign English Newspaper' && cat !== 'Uncategorized')
+      .sort((a, b) => {
       const indexA = DEFAULT_ACCOUNT_CATEGORIES.indexOf(a);
       const indexB = DEFAULT_ACCOUNT_CATEGORIES.indexOf(b);
       
@@ -563,19 +530,6 @@ export default function Accounts() {
     } catch (error) {
       console.error("Error moving account:", error);
       toast.error("Failed to move account");
-    }
-  };
-
-  const handleVerify = async (id: string, status: 'Active' | 'Broken') => {
-    try {
-      await updateDoc(doc(db, 'accounts', id), {
-        status,
-        lastChecked: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      toast.success(`Marked as ${status}`);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `accounts/${id}`);
     }
   };
 
@@ -942,7 +896,6 @@ export default function Accounts() {
                           isVisited={isVisited}
                           onVisit={markAsVisited}
                           getVisitCount={getVisitCount}
-                          onVerify={handleVerify}
                         />
                       ))}
                     </AnimatePresence>

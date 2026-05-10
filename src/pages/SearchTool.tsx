@@ -58,6 +58,20 @@ const SEARCH_HISTORY_KEY = 'fb_search_history_v2';
 const SEARCH_TEMPLATES_KEY = 'fb_search_templates';
 const SEARCH_KEYWORDS_KEY = 'fb_search_keywords';
 
+const DEFAULT_KEYWORDS = [
+  'কোটা সংস্কার আন্দোলন',
+  'ছাত্রলীগ',
+  'ছাত্রদল',
+  'ছাত্রশিবির',
+  'খুলনা',
+  'বরিশাল',
+  'সিলেট',
+  'রাজশাহী',
+  'রংপুর',
+  'চট্টগ্রাম',
+  'ঢাকা'
+];
+
 export default function SearchTool() {
   const [activeTab, setActiveTab] = useState<'custom' | 'iframe' | 'batch'>('custom');
   const [keyword, setKeyword] = useState('');
@@ -91,10 +105,10 @@ export default function SearchTool() {
   const [savedKeywords, setSavedKeywords] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(SEARCH_KEYWORDS_KEY);
-      return saved ? JSON.parse(saved) : [];
+      return saved ? JSON.parse(saved) : DEFAULT_KEYWORDS;
     } catch (e) {
       console.error("Error parsing search keywords:", e);
-      return [];
+      return DEFAULT_KEYWORDS;
     }
   });
 

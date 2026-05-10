@@ -36,7 +36,16 @@ export const DEFAULT_ACCOUNT_CATEGORIES = [
 ];
 
 export const DEFAULT_NEWSPAPER_CATEGORIES = [
-  "National", "Online Only", "English", "TV Channels", "Local", "International", "International English Newspaper", "Sports", "Business", "Technology"
+  "National Newspaper", 
+  "Online Newspaper", 
+  "TV Channels", 
+  "International English Newspaper", 
+  "International English Newspaper > Indian Newspaper",
+  "International English Newspaper > Myanmar Newspaper",
+  "International English Newspaper > Pakistan Newspaper",
+  "International English Newspaper > Other's",
+  "Indian Bangla",
+  "Amar Desh"
 ];
 
 export function useCategories(type: 'accounts' | 'newspapers' = 'accounts') {
